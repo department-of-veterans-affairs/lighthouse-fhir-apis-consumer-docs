@@ -47,6 +47,10 @@ jobs:
           fetch-depth: 0
           path: synthetic-records
       - name: Generate Spreadsheet
+        env:
+          GITHUB_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
+          LIGHTHOUSE_SETTINGS: ${{ env.GITHUB_WORKSPACE }}/consumer-docs/.github/build/settings.xml
         run: |
           ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
           mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
