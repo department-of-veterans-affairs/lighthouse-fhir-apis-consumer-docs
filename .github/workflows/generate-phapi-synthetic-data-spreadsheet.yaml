@@ -53,6 +53,9 @@ jobs:
         run: |
           export LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml
           ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
+          ls -al ${GITHUB_WORKSPACE}/synthetic-records
+          echo ===
+          ls -al ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager
           mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
             ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0/health-test-patient-data.xlsx
           cd ${GITHUB_WORKSPACE}/consumer-docs
