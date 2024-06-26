@@ -1,0 +1,68 @@
+name: Generate PHAPI Synthetic Data Spreadsheet
+on:
+  workflow_call:
+#  schedule:
+#    - cron: 0,30 * * * *
+
+jobs:
+  generate-synthetic-data-spreadsheet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'corretto'
+      - name: Setup Maven
+        env:
+          MAVEN_VERSION: '3.9.8'
+        run: |
+          echo "Installing Apache Maven ${MAVEN_VERSION}"
+          MAVEN_URL="http://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+          echo "Downloading maven from ${MAVEN_URL}"
+          curl --silent \
+            --location \
+            --output /tmp/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+            ${MAVEN_URL}
+          mkdir --parents /home/runner/.local/bin
+          MAVEN_DIR=/home/runner/.local
+          echo "Installing maven in ${MAVEN_DIR}/bin"
+          tar -x -C ${MAVEN_DIR} -f /tmp/apache-maven-${MAVEN_VERSION}-bin.tar.gz
+          ln --symbolic ${MAVEN_DIR}/apache-maven-${MAVEN_VERSION}/bin/mvn /home/runner/.local/bin/mvn
+          rm /tmp/apache-maven-${MAVEN_VERSION}-bin.tar.gz
+      - name: Get Consumer Docs Repo
+        uses: actions/checkout@v4
+        with:
+          # The standard GITHUB_ACTOR cannot push back to a protected branch.
+          # We must checkout with a god-mode user.
+          token: ${{ secrets.BUILD_GITHUB_TOKEN }}
+          path: consumer-docs
+      - name: Get Synth Records Repo
+        uses: actions/checkout@v4
+        with:
+          # The standard GITHUB_ACTOR cannot push back to a protected branch.
+          # We must checkout with a god-mode user.
+          token: ${{ secrets.BUILD_GITHUB_TOKEN }}
+          repository: department-of-veterans-affairs/health-apis-datamart-synthetic-records
+          ref: qa
+          fetch-depth: 0
+          path: synthetic-records
+      - name: Generate Spreadsheet
+        run: |
+          ./${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
+          mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
+            ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0/health-test-patient-data.xlsx
+          cd ${GITHUB_WORKSPACE}/consumer-docs
+          git add patient-health-v0/health-test-patient-data.xlsx
+      - name: Upload Spreadsheet
+        run: |
+          git config user.name libertybot
+          git config user.email "<none>"
+          CHANGES=$(git status --untracked-files=no --porcelain)
+          if [ -z "${CHANGES:-}" ]
+          then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "Updated patient-health-v0/health-test-patient-data.xlsx"
+          git push -u origin main
+          
