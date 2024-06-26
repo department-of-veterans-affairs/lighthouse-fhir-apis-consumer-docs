@@ -48,10 +48,10 @@ jobs:
           path: synthetic-records
       - name: Generate Spreadsheet
         env:
-          GITHUB_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
+          GITHUB_TOKEN_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
           GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
-          LIGHTHOUSE_SETTINGS: ${{ env.GITHUB_WORKSPACE }}/consumer-docs/.github/build/settings.xml
         run: |
+          export LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml
           ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
           mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
             ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0/health-test-patient-data.xlsx
