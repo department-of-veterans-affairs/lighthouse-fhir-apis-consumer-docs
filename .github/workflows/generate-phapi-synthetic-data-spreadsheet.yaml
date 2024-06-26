@@ -47,14 +47,22 @@ jobs:
           fetch-depth: 0
           path: synthetic-records
       - name: Generate Spreadsheet
+        env:
+          GITHUB_TOKEN_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
         run: |
-          ./${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
+          export LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml
+          ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
+          mkdir -p ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0
           mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
             ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0/health-test-patient-data.xlsx
           cd ${GITHUB_WORKSPACE}/consumer-docs
           git add patient-health-v0/health-test-patient-data.xlsx
       - name: Upload Spreadsheet
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
         run: |
+          cd ${GITHUB_WORKSPACE}/consumer-docs
           git config user.name libertybot
           git config user.email "<none>"
           CHANGES=$(git status --untracked-files=no --porcelain)
@@ -64,5 +72,5 @@ jobs:
             exit 0
           fi
           git commit -m "Updated patient-health-v0/health-test-patient-data.xlsx"
-          git push -u origin main
+          git push -u origin ${BRANCH_NAME}
           
