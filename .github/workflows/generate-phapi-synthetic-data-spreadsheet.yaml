@@ -1,8 +1,8 @@
 name: Generate PHAPI Synthetic Data Spreadsheet
 on:
   workflow_dispatch:
-#  schedule:
-#    - cron: 0,30 * * * *
+  schedule:
+    - cron: 0,30 * * * *
 
 jobs:
   generate-synthetic-data-spreadsheet:
@@ -52,6 +52,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
         run: |
           export LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml
+          echo "Building spreadsheet..."
           ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
           mkdir -p ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0
           mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
@@ -71,6 +72,7 @@ jobs:
             echo "No changes"
             exit 0
           fi
+          echo "Pushing updated spreadsheet"
           git commit -m "Updated patient-health-v0/health-test-patient-data.xlsx"
           git push -u origin ${BRANCH_NAME}
           
