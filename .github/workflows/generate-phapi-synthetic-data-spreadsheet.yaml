@@ -60,6 +60,7 @@ jobs:
           git add patient-health-v0/health-test-patient-data.xlsx
       - name: Upload Spreadsheet
         run: |
+          cd ${GITHUB_WORKSPACE}/consumer-docs
           git config user.name libertybot
           git config user.email "<none>"
           CHANGES=$(git status --untracked-files=no --porcelain)
