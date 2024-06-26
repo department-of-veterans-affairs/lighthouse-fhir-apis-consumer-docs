@@ -48,7 +48,7 @@ jobs:
           path: synthetic-records
       - name: Generate Spreadsheet
         run: |
-          ./${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
+          ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
           mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
             ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0/health-test-patient-data.xlsx
           cd ${GITHUB_WORKSPACE}/consumer-docs
