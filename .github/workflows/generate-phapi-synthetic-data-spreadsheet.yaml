@@ -1,4 +1,4 @@
-name: Generate PHAPI Synthetic Data Spreadsheet
+name: Generate Synthetic Data Spreadsheets
 on:
   workflow_dispatch:
 
@@ -44,20 +44,35 @@ jobs:
           ref: qa
           fetch-depth: 0
           path: synthetic-records
-      - name: Generate Spreadsheet
+      - name: Generate PHAPI Spreadsheet
         env:
           GITHUB_TOKEN_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
           GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
         run: |
           export LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml
-          echo "Building spreadsheet..."
+          echo "Building PHAPI spreadsheet..."
           ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
           mkdir -p ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0
           mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
             ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0/health-test-patient-data.xlsx
           cd ${GITHUB_WORKSPACE}/consumer-docs
           git add patient-health-v0/health-test-patient-data.xlsx
-      - name: Upload Spreadsheet
+      - name: Generate H3CAPI Spreadsheet
+        env:
+          GITHUB_TOKEN_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
+        run: |
+          export LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml
+          echo "Building H3CAPI spreadsheet..."
+          export RESOURCES=Account,ChargeItem,Encounter,Invoice,PaymentReconciliation
+          export OUTPUT_FILE=health-care-costs-and-coverage-test-patient-data.xlsx
+          ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
+          mkdir -p ${GITHUB_WORKSPACE}/consumer-docs/health-care-costs-and-coverage-v0
+          mv ${GITHUB_WORKSPACE}/synthetic-records/health-care-costs-and-coverage-test-patient-data.xlsx \
+            ${GITHUB_WORKSPACE}/consumer-docs/health-care-costs-and-coverage-v0/health-care-costs-and-coverage-test-patient-data.xlsx
+          cd ${GITHUB_WORKSPACE}/consumer-docs
+          git add health-care-costs-and-coverage-v0/health-care-costs-and-coverage-test-patient-data.xlsx
+      - name: Upload Spreadsheets
         env:
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
@@ -70,7 +85,7 @@ jobs:
             echo "No changes"
             exit 0
           fi
-          echo "Pushing updated spreadsheet"
-          git commit -m "Updated patient-health-v0/health-test-patient-data.xlsx"
+          echo "Pushing updated spreadsheets"
+          git commit -m "Updated synthetic data spreadsheets"
           git push -u origin ${BRANCH_NAME}
           
