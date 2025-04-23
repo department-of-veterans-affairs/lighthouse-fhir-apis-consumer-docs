@@ -45,10 +45,6 @@ jobs:
           fetch-depth: 0
           path: synthetic-records
       - name: Initialize
-        env:
-          APPLICATION_NAME: ${{ inputs.application }}
-          PROMOTION_ENVIRONMENT: ${{ inputs.environment }}
-          GH_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
         run: |
           # Setup Environment
           echo "LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml" \
