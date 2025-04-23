@@ -65,13 +65,13 @@ jobs:
           export LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml
           echo "Building H3CAPI spreadsheet..."
           export RESOURCES=Account,ChargeItem,Encounter,Invoice,PaymentReconciliation
-          export OUTPUT_FILE=health-care-costs-and-coverage-test-patient-data.xlsx
+          export OUTPUT_FILE=health-care-costs-coverage-v0-test-patient-data.xlsx
           ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
-          mkdir -p ${GITHUB_WORKSPACE}/consumer-docs/health-care-costs-and-coverage-v0
-          mv ${GITHUB_WORKSPACE}/synthetic-records/health-care-costs-and-coverage-test-patient-data.xlsx \
-            ${GITHUB_WORKSPACE}/consumer-docs/health-care-costs-and-coverage-v0/health-care-costs-and-coverage-test-patient-data.xlsx
+          mkdir -p ${GITHUB_WORKSPACE}/consumer-docs/health-care-costs-coverage-v0
+          mv ${GITHUB_WORKSPACE}/synthetic-records/health-care-costs-coverage-v0-test-patient-data.xlsx \
+            ${GITHUB_WORKSPACE}/consumer-docs/health-care-costs-coverage-v0/health-care-costs-coverage-v0-test-patient-data.xlsx
           cd ${GITHUB_WORKSPACE}/consumer-docs
-          git add health-care-costs-and-coverage-v0/health-care-costs-and-coverage-test-patient-data.xlsx
+          git add health-care-costs-coverage-v0/health-care-costs-coverage-v0-test-patient-data.xlsx
       - name: Upload Spreadsheets
         env:
           BRANCH_NAME: ${{ github.ref_name }}
