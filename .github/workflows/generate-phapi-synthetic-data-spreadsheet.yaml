@@ -55,6 +55,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
         run: |
           echo "Building PHAPI spreadsheet..."
+          export RESOURCES=AllergyIntolerance,Appointment,Condition,DiagnosticReport,Device,DeviceRequest,DocumentReference,Encounter,Immunization,MedicationOrder,MedicationStatement,Observation,Procedure
+          export OUTPUT_FILE=health-test-patient-data.xlsx
           ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
           mkdir -p ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0
           mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
