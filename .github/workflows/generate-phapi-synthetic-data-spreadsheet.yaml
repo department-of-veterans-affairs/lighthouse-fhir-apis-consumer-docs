@@ -1,4 +1,5 @@
 name: Generate Synthetic Data Spreadsheets
+permissions: write-all
 on:
   workflow_dispatch:
 
