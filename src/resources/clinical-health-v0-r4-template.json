@@ -1,0 +1,162 @@
+{
+  "baseUrl": "https://sandbox-api.va.gov/services/clinical-fhir/v0/r4",
+  "patientFields": [
+    {
+      "name": "Name",
+      "path": ".name[0].text"
+    },
+    {
+      "name": "Birthdate",
+      "path": ".birthDate"
+    }
+  ],
+  "resources": [
+    {
+      "type": "AllergyIntolerance",
+      "staticFields": [
+        {
+          "name": "CodeSystem",
+          "value": "http://snomed.info/sct"
+        }
+      ],
+      "jqFields": [
+        {
+          "name": "Code",
+          "path": "( .code.coding // [] )[] | select( .system==\"http://snomed.info/sct\" ) | .code"
+        },
+        {
+          "name": "Description",
+          "path": "( .code.coding // [] )[] | select( .system==\"http://snomed.info/sct\" ) | .display"
+        },
+        {
+          "name": "Status",
+          "path": "( .clinicalStatus.coding // [] )[] | select ( .system==\"http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical\" ) | .code"
+        },
+        {
+          "name": "Date",
+          "path": ".recordedDate"
+        }
+      ]
+    },
+    {
+      "type": "Condition",
+      "staticFields": [
+        {
+          "name": "CodeSystem",
+          "value": "http://snomed.info/sct"
+        }
+      ],
+      "jqFields": [
+        {
+          "name": "Code",
+          "path": "( .code.coding // [] )[] | select( .system==\"http://snomed.info/sct\" ) | .code"
+        },
+        {
+          "name": "Description",
+          "path": "( .code.coding // [] )[] | select( .system==\"http://snomed.info/sct\" ) | .display"
+        },
+        {
+          "name": "Status",
+          "path": ".clinicalStatus.text"
+        },
+        {
+          "name": "Classification",
+          "path": ".category[0].text"
+        },
+        {
+          "name": "Date",
+          "path": ".recordedDate"
+        }
+      ]
+    },
+    {
+      "type": "MedicationDispense",
+      "staticFields": [
+        {
+          "name": "CodeSystem",
+          "value": "urn:oid:2.16.840.1.113883.6.233"
+        }
+      ],
+      "jqFields": [
+        {
+          "name": "Code",
+          "path": "( .medicationCodeableConcept.coding // [] )[] | select( .system==\"urn:oid:2.16.840.1.113883.6.233\" ) | .code"
+        },
+        {
+          "name": "Description",
+          "path": "( .medicationCodeableConcept.coding // [] )[] | select( .system==\"urn:oid:2.16.840.1.113883.6.233\" ) | .display"
+        },
+        {
+          "name": "Status",
+          "path": ".status"
+        },
+        {
+          "name": "Date",
+          "path": ".whenPrepared"
+        }
+      ]
+    },
+    {
+      "type": "MedicationRequest",
+      "staticFields": [
+        {
+          "name": "CodeSystem",
+          "value": "https://www.pbm.va.gov/nationalformulary.asp"
+        }
+      ],
+      "jqFields": [
+        {
+          "name": "Code",
+          "path": "( .medicationCodeableConcept.coding // [] )[] | select( .system==\"https://www.pbm.va.gov/nationalformulary.asp\" ) | .code"
+        },
+        {
+          "name": "Description",
+          "path": "( .medicationCodeableConcept.coding // [] )[] | select( .system==\"https://www.pbm.va.gov/nationalformulary.asp\" ) | .display"
+        },
+        {
+          "name": "Status",
+          "path": ".status"
+        },
+        {
+          "name": "Classification",
+          "path": ".intent"
+        },
+        {
+          "name": "Date",
+          "path": ".authoredOn"
+        }
+      ]
+    },
+    {
+      "type": "Observation",
+      "staticFields": [
+        {
+          "name": "CodeSystem",
+          "value": "http://loinc.org"
+        }
+      ],
+      "jqFields": [
+        {
+          "name": "Code",
+          "path": "( .code.coding // [] )[] | select( .system==\"http://loinc.org\" ) | .code"
+        },
+        {
+          "name": "Description",
+          "path": ".code | ( ( .coding // [])[] | select( .system==\"http://loinc.org\" ) | .display) // .text"
+        },
+        {
+          "name": "Status",
+          "path": ".status"
+        },
+        {
+          "name": "Classification",
+          "path": ".category[0].text"
+        },
+        {
+          "name": "Date",
+          "path": ".effectiveDateTime"
+        }
+      ]
+    }
+  ]
+}
