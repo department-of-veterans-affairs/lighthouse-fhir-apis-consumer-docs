@@ -10,9 +10,10 @@ UNSUCCESSFUL_APIS=()
 : ${SLACK_CHANNEL:=vaapi-alerts-testing}
 
 main() {
-  echo "Starting Generate Test Patient Spreadsheets Job for ${1}"
+  echo "Starting Generate Test Patient Spreadsheets Job for ${1}, ${2}"
   echo "Work: $WORK"
   echo "SCRIPT_DIR: $SCRIPT_DIR"
+  sudo echo "Do I have sudo in the script"
   exit 0
   local chapiSpreadsheet=$(mktemp -p "${WORK}") gitBranch
   log "INFO" "Starting Generate Test Patient Spreadsheet Job..."

@@ -1,4 +1,4 @@
-name: Synthetic Record Generator
+name: Generate Curled Test Data Spreadsheets
 permissions: write-all
 on:
   pull_request:
@@ -34,10 +34,7 @@ jobs:
           echo "Release: ${RELEASE}"
           for template in $(find src/resources -name '*-template.json' -type f)
           do
-            echo "[INFO] Processing template: ${template}"
-            echo "$(pwd)"
-            echo "$(ls)"
-            echo "$(ls src)"
-            echo "$(ls src/scripts)"
-            ./src/scripts/generate-test-patient-spreadsheets.sh "${template}"
+            apiName=$(basename "${template}" | sed 's/-template.json//')
+            mkdir --parents "${apiName}"
+            ./src/scripts/generate-test-patient-spreadsheets.sh "${template}" "${apiName}-test-patient-data.xlsx"
           done
