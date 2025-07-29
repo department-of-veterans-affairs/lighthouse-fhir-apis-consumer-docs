@@ -145,7 +145,7 @@ createSpreadsheetRowsForResource() {
 
 convertToXlsx() {
   local inputCsv="${1}" outputXlsx="${2}" quotedCsv
-  quotedCsv=$(echo "${outputXlsx}" | sed 's/\.xlsx$/.csv/')
+  quotedCsv="${WORK}/$(basename "${outputXlsx}" | sed 's/\.xlsx$/.csv/')"
   # Quoting each field ensures that Excel treats the fields as text
   awk -F, '{for (i=1; i<=NF; i++) $i="=\"" $i "\""; print}' OFS=, "${inputCsv}" > "${quotedCsv}"
   cat "${quotedCsv}"
