@@ -15,9 +15,16 @@ main() {
     return 1
   fi
 
+  if ! command -v libreoffice &> /dev/null; then
+    log "ERROR" "libreoffice is not installed. Please install libreoffice to use this script."
+    exit 1
+  fi
+
   generateCsv "${tmpOutputCsv}"
 
   convertToXlsx "${tmpOutputCsv}" "${outputXlsx}"
+
+  log "INFO" "Done"
 }
 
 log () { echo "$(date) [${1}] ${2}"; }
@@ -137,14 +144,14 @@ createSpreadsheetRowsForResource() {
 }
 
 convertToXlsx() {
-  local inputCsv="${1}" outputXlsx="${2}"
-#  if ! command -v ssconvert &> /dev/null; then
-#    log "ERROR" "ssconvert is not installed. Please install gnumeric to use this script."
-#    exit 1
-#  fi
-#  log "INFO" "Converting ${inputCsv} to ${outputXlsx}"
-#  ssconvert "${inputCsv}" "${outputXlsx}"
-  cat "${inputCsv}"
+  local inputCsv="${1}" outputXlsx="${2}" quotedCsv
+  quotedCsv=$(echo "${outputXlsx}" | sed 's/\.xlsx$/.csv/')
+  # Quoting each field ensures that Excel treats the fields as text
+  awk -F, '{for (i=1; i<=NF; i++) $i="=\"" $i "\""; print}' OFS=, "${inputCsv}" > "${quotedCsv}"
+  cat "${quotedCsv}"
+
+  log "INFO" "Converting csv to xlsx"
+  libreoffice --headless --convert-to xlsx --outdir "$(dirname "${outputXlsx}")" "${quotedCsv}"
 }
 
 new-token() {
