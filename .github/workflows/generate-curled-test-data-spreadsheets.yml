@@ -38,7 +38,6 @@ jobs:
           CHAPI_CCG_OAUTH_URL: ${{ secrets.CHAPI_CCG_OAUTH_URL }}
           MAGIC_PATIENT_ICN: ${{ secrets.MAGIC_PATIENT_ICN }}
         run: |
-          echo "Release: ${RELEASE}"
           for template in $(find src/resources -name '*-template.json' -type f)
           do
             apiName=$(basename "${template}" | sed 's/-template.json//')
@@ -51,6 +50,11 @@ jobs:
         env:
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
+          if [ ! "true" == "${RELEASE:-false}" ]
+          then
+            echo "Not a release build, skipping upload of spreadsheets"
+            exit 0
+          fi
           git config user.name libertybot
           git config user.email "<none>"
           CHANGES=$(git status --untracked-files=no --porcelain)
