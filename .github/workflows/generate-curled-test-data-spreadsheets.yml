@@ -28,9 +28,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.BUILD_GITHUB_TOKEN }}
-      - name: Generate and push spreadsheets
+      - name: Generate spreadsheets
         env:
-          GITHUB_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
           GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
           GITHUB_HEAD_REF: ${{ github.head_ref }}
           CHAPI_CCG_CLIENT_ID: ${{ secrets.CHAPI_CCG_CLIENT_ID }}
@@ -46,3 +45,20 @@ jobs:
             mkdir --parents "${apiName}"
             ./src/scripts/generate-test-patient-spreadsheets.sh "${template}" "${apiName}/${apiName}-test-patient-data.xlsx"
           done
+      - name: Upload Spreadsheets
+        env:
+          GH_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          cd ${GITHUB_WORKSPACE}/consumer-docs
+          git config user.name libertybot
+          git config user.email "<none>"
+          CHANGES=$(git status --untracked-files=no --porcelain)
+          if [ -z "${CHANGES:-}" ]
+          then
+            echo "No changes"
+            exit 0
+          fi
+          echo "Pushing updated spreadsheets"
+          git commit -m "Updated synthetic data spreadsheets"
+          git push -u origin ${BRANCH_NAME}
