@@ -34,17 +34,17 @@
       "staticFields": [
         {
           "name": "CodeSystem",
-          "value": "http://snomed.info/sct"
+          "value": "http://www.nlm.nih.gov/research/umls/rxnorm"
         }
       ],
       "jqFields": [
         {
           "name": "Code",
-          "path": "( .code.coding // [] )[] | select( .system==\"http://snomed.info/sct\" ) | .code"
+          "path": "( .code.coding // [] )[] | select( .system==\"http://www.nlm.nih.gov/research/umls/rxnorm\" ) | .code"
         },
         {
           "name": "Description",
-          "path": "( .code.coding // [] )[] | select( .system==\"http://snomed.info/sct\" ) | .display"
+          "path": "( .code.coding // [] )[] | select( .system==\"http://www.nlm.nih.gov/research/umls/rxnorm\" ) | .display"
         },
         {
           "name": "Status",
