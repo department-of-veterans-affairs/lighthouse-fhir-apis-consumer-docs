@@ -6,7 +6,7 @@ export WORK=$(mktemp -p /tmp -d work.XXXX)
 main() {
   local outputXlsx="${2}" tmpOutputCsv
   TEMPLATE_FILE="${1}"
-  tmpOutputCsv=$(mktemp -p "${WORK}")
+  tmpOutputCsv="${WORK}/$(basename "${outputXlsx}" | sed 's/\.xlsx$/.csv/')"
   log "INFO" "Generating curled test data spreadsheet for ${TEMPLATE_FILE} and outputting to ${outputXlsx}"
   trap "onExit" EXIT
 
@@ -144,13 +144,10 @@ createSpreadsheetRowsForResource() {
 }
 
 convertToXlsx() {
-  local inputCsv="${1}" outputXlsx="${2}" quotedCsv
-  quotedCsv="${WORK}/$(basename "${outputXlsx}" | sed 's/\.xlsx$/.csv/')"
-  # Quoting each field ensures that Excel treats the fields as text
-  awk -F, '{for (i=1; i<=NF; i++) $i="=\"" $i "\""; print}' OFS=, "${inputCsv}" > "${quotedCsv}"
+  local inputCsv="${1}" outputXlsx="${2}"
 
   log "INFO" "Converting csv to xlsx"
-  libreoffice --headless --convert-to xlsx --outdir "$(dirname "${outputXlsx}")" "${quotedCsv}"
+  libreoffice --headless --convert-to xlsx --outdir "$(dirname "${outputXlsx}")" "${inputCsv}"
 }
 
 new-token() {
