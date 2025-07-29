@@ -37,5 +37,7 @@ jobs:
             echo "[INFO] Processing template: ${template}"
             echo "$(pwd)"
             echo "$(ls)"
-            ./src/scripts/generate-test-patient-spreadsheet.sh "${template}"
+            echo "$(ls src)"
+            echo "$(ls src/scripts)"
+            ./src/scripts/generate-test-patient-spreadsheets.sh "${template}"
           done
