@@ -35,5 +35,7 @@ jobs:
           for template in $(find src/resources -name '*-template.json' -type f)
           do
             echo "[INFO] Processing template: ${template}"
+            echo "$(pwd)"
+            echo "$(ls)"
             ./src/scripts/generate-test-patient-spreadsheet.sh "${template}"
           done
