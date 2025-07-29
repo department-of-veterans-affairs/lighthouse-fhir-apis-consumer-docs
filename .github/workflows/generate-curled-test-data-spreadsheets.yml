@@ -43,14 +43,14 @@ jobs:
           do
             apiName=$(basename "${template}" | sed 's/-template.json//')
             mkdir --parents "${apiName}"
-            ./src/scripts/generate-test-patient-spreadsheets.sh "${template}" "${apiName}/${apiName}-test-patient-data.xlsx"
+            outputFile="${apiName}/${apiName}-test-patient-data.xlsx"
+            ./src/scripts/generate-test-patient-spreadsheets.sh "${template}" "${outputFile}"
+            git add "${outputFile}"
           done
       - name: Upload Spreadsheets
         env:
-          GH_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
-          cd ${GITHUB_WORKSPACE}/consumer-docs
           git config user.name libertybot
           git config user.email "<none>"
           CHANGES=$(git status --untracked-files=no --porcelain)
@@ -60,5 +60,5 @@ jobs:
             exit 0
           fi
           echo "Pushing updated spreadsheets"
-          git commit -m "Updated synthetic data spreadsheets"
+          git commit -m "Updated curled test data spreadsheets"
           git push -u origin ${BRANCH_NAME}

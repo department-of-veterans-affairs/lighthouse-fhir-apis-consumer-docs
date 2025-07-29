@@ -27,7 +27,7 @@ main() {
   log "INFO" "Done"
 }
 
-log () { echo "$(date) [${1}] ${2}"; }
+log () { echo "$(date --utc +%FT%TZ) [${1}] ${2}"; }
 
 onExit() {
   rm -rf "$WORK"
@@ -148,7 +148,6 @@ convertToXlsx() {
   quotedCsv="${WORK}/$(basename "${outputXlsx}" | sed 's/\.xlsx$/.csv/')"
   # Quoting each field ensures that Excel treats the fields as text
   awk -F, '{for (i=1; i<=NF; i++) $i="=\"" $i "\""; print}' OFS=, "${inputCsv}" > "${quotedCsv}"
-  cat "${quotedCsv}"
 
   log "INFO" "Converting csv to xlsx"
   libreoffice --headless --convert-to xlsx --outdir "$(dirname "${outputXlsx}")" "${quotedCsv}"
