@@ -1,5 +1,12 @@
 {
   "baseUrl": "https://sandbox-api.va.gov/services/clinical-fhir/v0/r4",
+  "authentication": {
+    "type": "ccg",
+    ""
+  },
+  "testPatients": [
+
+  ],
   "patientFields": [
     {
       "name": "Name",

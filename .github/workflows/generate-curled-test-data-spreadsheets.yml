@@ -1,0 +1,39 @@
+name: Synthetic Record Generator
+permissions: write-all
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  synthetic-record-generator:
+    name: Generate and Push Curled Test Data Spreadsheets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Initialize Environment
+        env:
+          BUILD_TRIGGER: ${{ github.event_name }}
+        run: |
+          echo "BUILD_TRIGGER=${BUILD_TRIGGER}" | tee -a ${GITHUB_ENV}
+          if [ "${BUILD_TRIGGER}" == "push" ] || [ "${BUILD_TRIGGER}" == "workflow_dispatch" ]
+          then
+            RELEASE="true"
+          fi
+          echo "RELEASE=${RELEASE:-false}" | tee -a ${GITHUB_ENV}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BUILD_GITHUB_TOKEN }}
+      - name: Generate and push spreadsheets
+        env:
+          GITHUB_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          echo "Release: ${RELEASE}"
+          for template in $(find src/resources -name '*-template.json' -type f)
+          do
+            echo "[INFO] Processing template: ${template}"
+            ./src/scripts/generate-test-patient-spreadsheet.sh "${template}"
+          done

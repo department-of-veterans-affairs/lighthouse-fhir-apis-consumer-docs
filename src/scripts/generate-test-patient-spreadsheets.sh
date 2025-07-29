@@ -10,10 +10,10 @@ UNSUCCESSFUL_APIS=()
 : ${SLACK_CHANNEL:=vaapi-alerts-testing}
 
 main() {
-  if [ ! "true" == "${EXECUTE:-false}" ]; then
-    log "INFO" "Skipping Generate Test Patient Spreadsheet Job as EXECUTE is set to false in ${ENVIRONMENT:-local}."
-    return
-  fi
+  echo "Starting Generate Test Patient Spreadsheets Job for ${1}"
+  echo "Work: $WORK"
+  echo "SCRIPT_DIR: $SCRIPT_DIR"
+  exit 0
   local chapiSpreadsheet=$(mktemp -p "${WORK}") gitBranch
   log "INFO" "Starting Generate Test Patient Spreadsheet Job..."
   trap "onExit" EXIT
@@ -114,7 +114,6 @@ printCsv() {
 
 onExit() {
   rm -rf "$WORK"
-  istio shutdown
 }
 
 main $@
