@@ -23,6 +23,7 @@ jobs:
           echo "RELEASE=${RELEASE:-false}" | tee -a ${GITHUB_ENV}
       - name: Install libreoffice
         run: |
+          sudo apt-get update
           sudo apt install -y --no-install-recommends libreoffice
       - name: Checkout repository
         uses: actions/checkout@v4
