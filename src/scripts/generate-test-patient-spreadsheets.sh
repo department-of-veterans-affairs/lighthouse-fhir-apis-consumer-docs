@@ -2,119 +2,177 @@
 set -euo pipefail
 if [ "${DEBUG:=false}" == "true" ]; then set -x; fi
 export WORK=$(mktemp -p /tmp -d work.XXXX)
-SCRIPT_DIR=$(dirname $(readlink -f $0))
-source "${SCRIPT_DIR}/test-patient-spreadsheet-generator.sh"
-
-UNSUCCESSFUL_APIS=()
-
-: ${SLACK_CHANNEL:=vaapi-alerts-testing}
 
 main() {
-  echo "Starting Generate Test Patient Spreadsheets Job for ${1}, ${2}"
-  echo "Work: $WORK"
-  echo "SCRIPT_DIR: $SCRIPT_DIR"
-  sudo echo "Do I have sudo in the script"
-  exit 0
-  local chapiSpreadsheet=$(mktemp -p "${WORK}") gitBranch
-  log "INFO" "Starting Generate Test Patient Spreadsheet Job..."
+  local outputXlsx="${2}" tmpOutputCsv
+  TEMPLATE_FILE="${1}"
+  tmpOutputCsv=$(mktemp -p "${WORK}")
+  log "INFO" "Generating curled test data spreadsheet for ${TEMPLATE_FILE} and outputting to ${outputXlsx}"
   trap "onExit" EXIT
 
-  # Generate the new spreadsheets
-  generateChapiTestDataSpreadsheet "${chapiSpreadsheet}"
-
-  # Push the generated spreadsheets to GitHub
-  if [ "true" == "${RELEASE:-false}" ]; then
-    cd "${WORK}"
-    git clone "https://github.com/department-of-veterans-affairs/${DOCUMENTATION_REPO}.git"
-    cd "${DOCUMENTATION_REPO}"
-    gitBranch=$(git branch -r | grep -o 'DOCS-.*-spreadsheet-updates' || true | head -n 1)
-    if [ -z $gitBranch ]; then
-      gitBranch="DOCS-$(date +%s)-spreadsheet-updates"
-      git branch ${gitBranch}
-    fi
-    git checkout ${gitBranch}
-
-    mkdir -p ./clinical-health-v0; mv "${chapiSpreadsheet}" "./clinical-health-v0/clinical-health-v0-test-patient-spreadsheet.csv"
-
-    git add .
-    if [ -z "$(git status --porcelain)" ]; then
-      echo "No changes"
-    else
-      git add $(git status -s | grep "^ M" | cut -c4-)
-      git commit -m "Generated Test Patient Spreadsheets"
-      git push -u origin ${gitBranch}
-      if ! $(ghPrList "${DOCUMENTATION_REPO}") | grep 'DOCS-.*-spreadsheet-updates' || true
-      then
-        ghPrCreate "${gitBranch}"
-      fi
-    fi
-  else
-    log "INFO" "Skipping GitHub push as RELEASE is set to false in ${ENVIRONMENT:-local}. Outputing csvs here instead."
-    printCsv "${chapiSpreadsheet}" "clinical-health-v0-test-patient-spreadsheet.csv"
+  if [ ! -f "${TEMPLATE_FILE}" ]; then
+    log "ERROR" "${TEMPLATE_FILE} does not exist."
+    return 1
   fi
 
-  if [ ${#UNSUCCESSFUL_APIS[@]} -ne 0 ]; then
-    sendSlackErrorMessage "$(echo "${UNSUCCESSFUL_APIS[@]}" | tr ' ' ',')"
-  exit 1
-  fi
+  generateCsv "${tmpOutputCsv}"
+
+  convertToXlsx "${tmpOutputCsv}" "${outputXlsx}"
 }
 
-ghPrList() {
-  curl -L \
-    -H "Accept: application/vnd.github+json" \
-    -H "Authorization: Bearer ${GH_TOKEN}" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    "https://api.github.com/repos/department-of-veterans-affairs/${DOCUMENTATION_REPO}/pulls"
-}
-
-ghPrCreate() {
-  local gitBranch="${1}"
-  curl -L \
-    -X POST \
-    -H "Accept: application/vnd.github+json" \
-    -H "Authorization: Bearer ${GH_TOKEN}" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    https://api.github.com/repos/department-of-veterans-affairs/${DOCUMENTATION_REPO}/pulls \
-    -d "\"{\"title\":\"Test Data Spreadsheet Changes\",\"head\":\"${gitBranch}\",\"base\":\"main\"}"
-}
-
-generateChapiTestDataSpreadsheet() {
-  local outputFile="${1}"
-  generateTestDataSpreadsheet "clinical-health-v0-r4" \
-    "${outputFile}" \
-    "${CHAPI_TEST_PATIENTS}" \
-    "${OAUTH_CLIENT_CREDENTIALS_CLIENT_ID}" \
-    "${OAUTH_CLIENT_CREDENTIALS_CLIENT_SECRET}" \
-    "${CLINICAL_HEALTH_V0_R4_CLIENT_CREDENTIALS_AUDIENCE}" \
-    "${CLINICAL_HEALTH_V0_R4_CLIENT_CREDENTIALS_TOKEN_URL//\/token/}" \
-    "launch system/AllergyIntolerance.read system/Condition.read system/MedicationDispense.read system/MedicationRequest.read system/Observation.read system/Patient.read system/Practitioner.read" \
-    "{\"patient\":\"${CLINICAL_HEALTH_V0_R4_SSOI_LAUNCH_PATIENT}\"}"
-}
-
-generateTestDataSpreadsheet() {
-  local api="${1}" outputFile="${2}" testPatients="${3}" clientId="${4}" clientSecret="${5}" audience="${6}" oauthUrl="${7}" scope="${8}" launch="${9}" templateFile
-  templateFile="${SCRIPT_DIR}/${api}-template.json"
-
-  log "INFO" "Generating test data spreadsheet for ${api} using ${templateFile}"
-  if ! generateTestPatientSpreadsheet "${api}" "${templateFile}" "${outputFile}" "${testPatients}" "${clientId}" "${clientSecret}" "${audience}" "${oauthUrl}" "${scope}" "${launch}"
-  then
-    log "ERROR" "Failed to generate test data spreadsheet for ${api}."
-    UNSUCCESSFUL_APIS+=("$api")
-    return
-  fi
-}
-
-printCsv() {
-  local csvFile="${1}" csvName="${2}"
-  if [ -f "${csvFile}" ]; then
-    echo
-    echo "${csvName}:"
-    cat "${csvFile}"
-  fi
-}
+log () { echo "$(date) [${1}] ${2}"; }
 
 onExit() {
   rm -rf "$WORK"
+}
+
+request() {
+  local url="${1}" curlResponse="${2}" statusCode
+
+  log "INFO" "Requesting ${url}"
+  if [ "200" != "$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")" ]; then
+    log "INFO" "Refreshing token and retrying ${url}"
+    TOKEN=$(new-token)
+    statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")
+    if [ "200" != "${statusCode}" ]; then
+      log "ERROR" "Request to ${url} failed. Status code was ${statusCode}."
+      exit 1
+    fi
+  fi
+}
+
+generateCsv() {
+  local outputCsv="${1}"
+  local curlResponse baseUrl patientFields resourceStaticFields resourceJqFields patientFieldValues staticFieldValues
+  curlResponse=$(mktemp -p "${WORK:-/tmp}")
+  baseUrl=$(jq -r '.baseUrl' "${TEMPLATE_FILE}")
+
+  patientFields=$(jq -r '.patientFields[].name' "${TEMPLATE_FILE}" | tr '\n' ' ')
+  resourceStaticFields=()
+  resourceJqFields=()
+
+  for i in $(seq 0 $(($(jq '.resources | length' "${TEMPLATE_FILE}")-1))); do
+    for staticField in $(jq -r ".resources[${i}].staticFields[].name" "${TEMPLATE_FILE}"); do
+      if [[ ! " ${resourceStaticFields[*]} " =~ [[:space:]]${staticField}[[:space:]] ]]; then
+          resourceStaticFields+=" ${staticField}"
+      fi
+    done
+    for jqField in $(jq -r ".resources[${i}].jqFields[].name" "${TEMPLATE_FILE}"); do
+      if [[ ! " ${resourceJqFields[*]} " =~ [[:space:]]${jqField}[[:space:]] ]]; then
+          resourceJqFields+=" ${jqField}"
+      fi
+    done
+  done
+
+  echo "ICN,${patientFields// /,}Resource${resourceStaticFields// /,}${resourceJqFields// /,}" > "${outputCsv}"
+
+
+  TOKEN=$(new-token)
+
+  # Send the requests and create the spreadsheet rows
+  for patientId in $(jq -r '.testPatients[]' "${TEMPLATE_FILE}"); do
+    request "${baseUrl}/Patient/${patientId}" "${curlResponse}"
+    patientFieldValues="${patientId}"
+    for field in ${patientFields}; do
+      patientFieldValues+=","
+      value=$(jq -r "$(jq -r ".patientFields[] | select(.name==\"${field}\") | .path" "${TEMPLATE_FILE}")" "${curlResponse}")
+      if [ "${value}" != "null" ]; then
+        patientFieldValues+="${value//,/ }"  # Replace commas with spaces
+      fi
+    done
+
+    for i in $(seq 0 $(($(jq '.resources | length' "${TEMPLATE_FILE}")-1))); do
+      resourceType=$(jq -r ".resources[${i}].type" "${TEMPLATE_FILE}")
+      staticFieldValues=""
+      for field in ${resourceStaticFields}; do
+        staticFieldValues+=","
+        value="$(jq -r ".resources[] | select( .type==\"${resourceType}\") | ( .staticFields // [])[] | select(.name==\"${field}\") | .value" "${TEMPLATE_FILE}")"
+        if [ "${value}" != "null" ]; then
+          staticFieldValues+="${value//,/ }"  # Replace commas with spaces
+        fi
+      done
+      createSpreadsheetRowsForResource "${resourceType}" "${outputCsv}" "${curlResponse}" "${patientId}" "${patientFieldValues},${resourceType}${staticFieldValues}" "${resourceJqFields}"
+    done
+  done
+}
+
+createSpreadsheetRowsForResource() {
+  local resourceType="${1}" outputCsv="${2}" curlResponse="${3}" patientId="${4}" rowNonResourceJqFields="${5}" resourceJqFields="${6}" baseUrl jqFieldValues url numRecords
+  baseUrl=$(jq -r '.baseUrl' "${TEMPLATE_FILE}")
+  declare -A jqFieldValues
+
+  url="${baseUrl}/${resourceType}?patient=${patientId}"
+  while [ -n "${url:-}" ]; do
+    jqFieldValues=()
+    request "${url}" "${curlResponse}"
+    unset url
+
+    numRecords=$(jq -r '.entry | length' "${curlResponse}")
+
+    if [ "${numRecords}" -eq 0 ]; then
+      log "INFO" "No ${resourceType} resources found for patient ${patientId}"
+      continue
+    fi
+
+    for jqField in ${resourceJqFields}; do
+      if [[ " $(jq -r ".resources[] | select( .type==\"${resourceType}\" ) | .jqFields[].name" "${TEMPLATE_FILE}" | tr '\n' ' ')" =~ [[:space:]]${jqField}[[:space:]] ]]; then
+        jqFieldValues["${jqField}"]=$(jq -r ".entry[].resource | $(jq -r ".resources[] | select(.type==\"${resourceType}\") | .jqFields[] | select(.name==\"${jqField}\") | .path" "${TEMPLATE_FILE}")" "${curlResponse}")
+      fi
+    done
+
+    for i in $(seq 1 ${numRecords}); do
+      row="${rowNonResourceJqFields}"
+      for jqField in ${resourceJqFields}; do
+        if [[ " $(jq -r " .resources[] | select( .type==\"${resourceType}\" ) | .jqFields[].name" "${TEMPLATE_FILE}" | tr '\n' ' ')" =~ [[:space:]]${jqField}[[:space:]] ]]; then
+          row+=",$(echo "${jqFieldValues[${jqField}]}" | sed -n "${i} p" | tr ',' ' ')"
+        else
+          row+=","
+        fi
+      done
+      echo "${row}" >> "${outputCsv}"
+    done
+
+    url=$(jq -r '.link[]? | select( .relation=="next" ) | .url' "${curlResponse}")
+  done
+}
+
+convertToXlsx() {
+  local inputCsv="${1}" outputXlsx="${2}"
+#  if ! command -v ssconvert &> /dev/null; then
+#    log "ERROR" "ssconvert is not installed. Please install gnumeric to use this script."
+#    exit 1
+#  fi
+#  log "INFO" "Converting ${inputCsv} to ${outputXlsx}"
+#  ssconvert "${inputCsv}" "${outputXlsx}"
+  cat "${inputCsv}"
+}
+
+new-token() {
+  if [ "ccg" == "$(jq -r '.authentication.type' "${TEMPLATE_FILE}")" ]; then
+    new-ccg-token
+  else
+    log "ERROR" "Unsupported authentication type in template file: $(jq -r '.authentication.type' "${TEMPLATE_FILE}")"
+    exit 1
+  fi
+}
+
+new-ccg-token() {
+  local clientIdEnvVar clientSecretEnvVar audienceEnvVar oauthUrlEnvVar launchPatientEnvVar
+  clientIdEnvVar="$(jq -r '.authentication.clientIdEnvVar' "${TEMPLATE_FILE}")"
+  clientSecretEnvVar="$(jq -r '.authentication.clientSecretEnvVar' "${TEMPLATE_FILE}")"
+  audienceEnvVar="$(jq -r '.authentication.audienceEnvVar' "${TEMPLATE_FILE}")"
+  oauthUrlEnvVar="$(jq -r '.authentication.oauthUrlEnvVar' "${TEMPLATE_FILE}")"
+  launchPatientEnvVar="$(jq -r '.authentication.launchPatientEnvVar' "${TEMPLATE_FILE}")"
+  bash <(curl -sH"Authorization: Bearer $GITHUB_TOKEN" "https://raw.githubusercontent.com/department-of-veterans-affairs/shanktopus/master/bin/system-authorization-token") \
+    --client-id "${!clientIdEnvVar}" \
+    --client-secret "${!clientSecretEnvVar}" \
+    --audience "${!audienceEnvVar}" \
+    --oauth-url "${!oauthUrlEnvVar}" \
+    --scope "$(jq -r '.authentication.scopes' "${TEMPLATE_FILE}")" \
+    --launch "{\"patient\":\"${!launchPatientEnvVar}\"}" \
+    --print-token \
+    lab \
+    | jq -r '.access_token'
 }
 
 main $@

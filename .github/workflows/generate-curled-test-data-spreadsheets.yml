@@ -30,11 +30,16 @@ jobs:
           GITHUB_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
           GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
           GITHUB_HEAD_REF: ${{ github.head_ref }}
+          CHAPI_CCG_CLIENT_ID: ${{ secrets.CHAPI_CCG_CLIENT_ID }}
+          CHAPI_CCG_CLIENT_SECRET: ${{ secrets.CHAPI_CCG_CLIENT_SECRET }}
+          CHAPI_CCG_AUDIENCE: ${{ secrets.CHAPI_CCG_AUDIENCE }}
+          CHAPI_CCG_OAUTH_URL: ${{ secrets.CHAPI_CCG_OAUTH_URL }}
+          MAGIC_PATIENT_ICN: ${{ secrets.MAGIC_PATIENT_ICN }}
         run: |
           echo "Release: ${RELEASE}"
           for template in $(find src/resources -name '*-template.json' -type f)
           do
             apiName=$(basename "${template}" | sed 's/-template.json//')
             mkdir --parents "${apiName}"
-            ./src/scripts/generate-test-patient-spreadsheets.sh "${template}" "${apiName}-test-patient-data.xlsx"
+            ./src/scripts/generate-test-patient-spreadsheets.sh "${template}" "${apiName}/${apiName}-test-patient-data.xlsx"
           done

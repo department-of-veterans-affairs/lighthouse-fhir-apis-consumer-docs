@@ -2,10 +2,16 @@
   "baseUrl": "https://sandbox-api.va.gov/services/clinical-fhir/v0/r4",
   "authentication": {
     "type": "ccg",
-    ""
+    "clientIdEnvVar": "CHAPI_CCG_CLIENT_ID",
+    "clientSecretEnvVar": "CHAPI_CCG_CLIENT_SECRET",
+    "audienceEnvVar": "CHAPI_CCG_AUDIENCE",
+    "oauthUrlEnvVar": "CHAPI_CCG_OAUTH_URL",
+    "scopes": "launch system/AllergyIntolerance.read system/Condition.read system/MedicationDispense.read system/MedicationRequest.read system/Observation.read system/Patient.read system/Practitioner.read",
+    "launchPatientEnvVar": "MAGIC_PATIENT_ICN"
   },
   "testPatients": [
-
+    "32000225",
+    "43000199"
   ],
   "patientFields": [
     {
