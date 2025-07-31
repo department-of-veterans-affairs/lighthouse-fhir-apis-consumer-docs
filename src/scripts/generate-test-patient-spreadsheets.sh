@@ -15,6 +15,11 @@ main() {
     return 1
   fi
 
+  if ! jq -e . "${TEMPLATE_FILE}" >/dev/null 2>&1; then
+    log "ERROR" "${TEMPLATE_FILE} is not valid json."
+    return 1
+  fi
+
   if ! command -v libreoffice &> /dev/null; then
     log "ERROR" "libreoffice is not installed. Please install libreoffice to use this script."
     exit 1
