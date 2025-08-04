@@ -75,9 +75,9 @@ jobs:
           CHAPI_CCG_OAUTH_URL: ${{ secrets.CHAPI_CCG_OAUTH_URL }}
           MAGIC_PATIENT_ICN: ${{ secrets.MAGIC_PATIENT_ICN }}
         run: |
-          for template in $(find .github/config/generate-test-data-spreadsheets -name '*-template.json' -type f)
+          for template in $(find .github/config/generate-test-data-spreadsheets -name '*.json.template' -type f)
           do
-            apiName=$(basename "${template}" | sed 's/-template.json//')
+            apiName=$(basename "${template}" | sed 's/.json.template//')
             mkdir --parents "${apiName}"
             outputFile="${apiName}/${apiName}-test-patient-data.xlsx"
             ./src/scripts/generate-test-patient-spreadsheets.sh "${template}" "${outputFile}"
