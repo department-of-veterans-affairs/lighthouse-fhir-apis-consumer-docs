@@ -42,7 +42,7 @@ onExit() {
 }
 
 request() {
-  local url="${1}" curlResponse="${2}" statusCode
+  local url="${1}" curlResponse="${2}" patientId="${3}" statusCode
 
   log "INFO" "Requesting ${url}"
   if [ "200" != "$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")" ]; then
@@ -81,12 +81,10 @@ generateCsv() {
 
   echo "ICN,${patientFields// /,}Resource${resourceStaticFields// /,}${resourceJqFields// /,}" > "${outputCsv}"
 
-
-  TOKEN=$(new-token)
-
   # Send the requests and create the spreadsheet rows
   for patientId in $(jq -r '.testPatients[]' "${TEMPLATE_FILE}"); do
-    request "${baseUrl}/Patient/${patientId}" "${curlResponse}"
+    TOKEN=$(new-token "${patientId}")
+    request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
     patientFieldValues="${patientId}"
     for field in ${patientFields}; do
       patientFieldValues+=","
@@ -119,7 +117,7 @@ createSpreadsheetRowsForResource() {
   url="${baseUrl}/${resourceType}?patient=${patientId}"
   while [ -n "${url:-}" ]; do
     jqFieldValues=()
-    request "${url}" "${curlResponse}"
+    request "${url}" "${curlResponse}" "${patientId}"
     unset url
 
     numRecords=$(jq -r '.entry | length' "${curlResponse}")
@@ -159,8 +157,9 @@ convertToXlsx() {
 }
 
 new-token() {
+  local patientId="${1}"
   if [ "ccg" == "$(jq -r '.authentication.type' "${TEMPLATE_FILE}")" ]; then
-    new-ccg-token
+    new-ccg-token "${patientId}"
   else
     log "ERROR" "Unsupported authentication type in template file: $(jq -r '.authentication.type' "${TEMPLATE_FILE}")"
     exit 1
@@ -168,7 +167,7 @@ new-token() {
 }
 
 new-ccg-token() {
-  local clientId clientSecret audience oauthUrl launchPatient
+  local launchPatient="${1}" clientId clientSecret audience oauthUrl
   clientId="$(jq -r '.authentication.clientId' "${TEMPLATE_FILE}")"
   clientSecret="$(jq -r '.authentication.clientSecret' "${TEMPLATE_FILE}")"
   audience="$(jq -r '.authentication.audience' "${TEMPLATE_FILE}")"
