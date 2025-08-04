@@ -1,12 +1,30 @@
-name: Generate Synthetic Data Spreadsheets
+name: Generate Test Data Spreadsheets
 permissions: write-all
 on:
+  pull_request:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  generate-synthetic-data-spreadsheet:
+  synthetic-record-generator:
+    name: Generate and Push Test Data Spreadsheets
     runs-on: ubuntu-latest
     steps:
+      - name: Initialize Environment
+        env:
+          BUILD_TRIGGER: ${{ github.event_name }}
+        run: |
+          echo "BUILD_TRIGGER=${BUILD_TRIGGER}" | tee -a ${GITHUB_ENV}
+          if [ "${BUILD_TRIGGER}" == "push" ] || [ "${BUILD_TRIGGER}" == "workflow_dispatch" ]
+          then
+            RELEASE="true"
+          fi
+          echo "RELEASE=${RELEASE:-false}" | tee -a ${GITHUB_ENV}
+      - name: Install libreoffice
+        run: |
+          sudo apt-get update
+          sudo apt install -y --no-install-recommends libreoffice
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -28,13 +46,10 @@ jobs:
           tar -x -C ${MAVEN_DIR} -f /tmp/apache-maven-${MAVEN_VERSION}-bin.tar.gz
           ln --symbolic ${MAVEN_DIR}/apache-maven-${MAVEN_VERSION}/bin/mvn /home/runner/.local/bin/mvn
           rm /tmp/apache-maven-${MAVEN_VERSION}-bin.tar.gz
-      - name: Get Consumer Docs Repo
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # The standard GITHUB_ACTOR cannot push back to a protected branch.
-          # We must checkout with a god-mode user.
           token: ${{ secrets.BUILD_GITHUB_TOKEN }}
-          path: consumer-docs
       - name: Get Synth Records Repo
         uses: actions/checkout@v4
         with:
@@ -45,11 +60,29 @@ jobs:
           ref: qa
           fetch-depth: 0
           path: synthetic-records
-      - name: Initialize
+      - name: Initialize Maven
         run: |
           # Setup Environment
           echo "LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml" \
             | tee --append ${GITHUB_ENV}
+      - name: Generate templated spreadsheets
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          CHAPI_CCG_CLIENT_ID: ${{ secrets.CHAPI_CCG_CLIENT_ID }}
+          CHAPI_CCG_CLIENT_SECRET: ${{ secrets.CHAPI_CCG_CLIENT_SECRET }}
+          CHAPI_CCG_AUDIENCE: ${{ secrets.CHAPI_CCG_AUDIENCE }}
+          CHAPI_CCG_OAUTH_URL: ${{ secrets.CHAPI_CCG_OAUTH_URL }}
+          MAGIC_PATIENT_ICN: ${{ secrets.MAGIC_PATIENT_ICN }}
+        run: |
+          for template in $(find .github/config/generate-test-data-spreadsheets -name '*-template.json' -type f)
+          do
+            apiName=$(basename "${template}" | sed 's/-template.json//')
+            mkdir --parents "${apiName}"
+            outputFile="${apiName}/${apiName}-test-patient-data.xlsx"
+            ./src/scripts/generate-test-patient-spreadsheets.sh "${template}" "${outputFile}"
+            git add "${outputFile}"
+          done
       - name: Generate PHAPI Spreadsheet
         env:
           GITHUB_TOKEN_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
@@ -82,7 +115,11 @@ jobs:
         env:
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
-          cd ${GITHUB_WORKSPACE}/consumer-docs
+          if [ ! "true" == "${RELEASE:-false}" ]
+          then
+            echo "Not a release build, skipping upload of spreadsheets"
+            exit 0
+          fi
           git config user.name libertybot
           git config user.email "<none>"
           CHANGES=$(git status --untracked-files=no --porcelain)
@@ -92,6 +129,5 @@ jobs:
             exit 0
           fi
           echo "Pushing updated spreadsheets"
-          git commit -m "Updated synthetic data spreadsheets"
+          git commit -m "Updated test data spreadsheets"
           git push -u origin ${BRANCH_NAME}
-          
