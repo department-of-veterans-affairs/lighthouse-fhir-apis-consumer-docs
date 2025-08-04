@@ -82,7 +82,7 @@ generateCsv() {
   echo "ICN,${patientFields// /,}Resource${resourceStaticFields// /,}${resourceJqFields// /,}" > "${outputCsv}"
 
   # Send the requests and create the spreadsheet rows
-  for patientId in $(jq -r '.testPatients[]' "${TEMPLATE_FILE}"); do
+  for patientId in $(jq -r '.patientIds[]' "${TEMPLATE_FILE}"); do
     TOKEN=$(new-token "${patientId}")
     request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
     patientFieldValues="${patientId}"

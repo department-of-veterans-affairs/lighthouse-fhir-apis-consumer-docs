@@ -9,7 +9,7 @@
     "scopes": "launch system/AllergyIntolerance.read system/Condition.read system/MedicationDispense.read system/MedicationRequest.read system/Observation.read system/Patient.read system/Practitioner.read",
     "launchPatient": "${MAGIC_PATIENT_ICN}"
   },
-  "testPatients": [
+  "patientIds": [
     "32000225",
     "5000335",
     "25000126",
