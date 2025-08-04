@@ -39,7 +39,7 @@ jobs:
           CHAPI_CCG_OAUTH_URL: ${{ secrets.CHAPI_CCG_OAUTH_URL }}
           MAGIC_PATIENT_ICN: ${{ secrets.MAGIC_PATIENT_ICN }}
         run: |
-          for template in $(find src/resources -name '*-template.json' -type f)
+          for template in $(find .github/config/generate-test-data-spreadsheets -name '*-template.json' -type f)
           do
             apiName=$(basename "${template}" | sed 's/-template.json//')
             mkdir --parents "${apiName}"
