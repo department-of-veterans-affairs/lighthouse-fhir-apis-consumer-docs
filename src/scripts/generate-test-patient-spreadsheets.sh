@@ -4,19 +4,19 @@ if [ "${DEBUG:=false}" == "true" ]; then set -x; fi
 export WORK=$(mktemp -p /tmp -d work.XXXX)
 
 main() {
-  local outputXlsx="${2}" tmpOutputCsv
-  TEMPLATE_FILE="${1}"
+  local preSubstitutionTemplate="${1}" outputXlsx="${2}" tmpOutputCsv
+  TEMPLATE_FILE=$(mktemp -p "${WORK:-/tmp}")
   tmpOutputCsv="${WORK}/$(basename "${outputXlsx}" | sed 's/\.xlsx$/.csv/')"
-  log "INFO" "Generating curled test data spreadsheet for ${TEMPLATE_FILE} and outputting to ${outputXlsx}"
+  log "INFO" "Generating curled test data spreadsheet for ${preSubstitutionTemplate} and outputting to ${outputXlsx}"
   trap "onExit" EXIT
 
-  if [ ! -f "${TEMPLATE_FILE}" ]; then
-    log "ERROR" "${TEMPLATE_FILE} does not exist."
+  if [ ! -f "${preSubstitutionTemplate}" ]; then
+    log "ERROR" "${preSubstitutionTemplate} does not exist."
     return 1
   fi
 
-  if ! jq -e . "${TEMPLATE_FILE}" >/dev/null 2>&1; then
-    log "ERROR" "${TEMPLATE_FILE} is not valid json."
+  if ! jq -e . "${preSubstitutionTemplate}" >/dev/null 2>&1; then
+    log "ERROR" "${preSubstitutionTemplate} is not valid json."
     return 1
   fi
 
@@ -24,6 +24,9 @@ main() {
     log "ERROR" "libreoffice is not installed. Please install libreoffice to use this script."
     exit 1
   fi
+
+  log "INFO" "Performing environment substitution on ${preSubstitutionTemplate}"
+  envsubst < "${preSubstitutionTemplate}" > "${TEMPLATE_FILE}"
 
   generateCsv "${tmpOutputCsv}"
 
@@ -165,19 +168,19 @@ new-token() {
 }
 
 new-ccg-token() {
-  local clientIdEnvVar clientSecretEnvVar audienceEnvVar oauthUrlEnvVar launchPatientEnvVar
-  clientIdEnvVar="$(jq -r '.authentication.clientIdEnvVar' "${TEMPLATE_FILE}")"
-  clientSecretEnvVar="$(jq -r '.authentication.clientSecretEnvVar' "${TEMPLATE_FILE}")"
-  audienceEnvVar="$(jq -r '.authentication.audienceEnvVar' "${TEMPLATE_FILE}")"
-  oauthUrlEnvVar="$(jq -r '.authentication.oauthUrlEnvVar' "${TEMPLATE_FILE}")"
-  launchPatientEnvVar="$(jq -r '.authentication.launchPatientEnvVar' "${TEMPLATE_FILE}")"
+  local clientId clientSecret audience oauthUrl launchPatient
+  clientId="$(jq -r '.authentication.clientId' "${TEMPLATE_FILE}")"
+  clientSecret="$(jq -r '.authentication.clientSecret' "${TEMPLATE_FILE}")"
+  audience="$(jq -r '.authentication.audience' "${TEMPLATE_FILE}")"
+  oauthUrl="$(jq -r '.authentication.oauthUrl' "${TEMPLATE_FILE}")"
+  launchPatient="$(jq -r '.authentication.launchPatient' "${TEMPLATE_FILE}")"
   bash <(curl -sH"Authorization: Bearer $GITHUB_TOKEN" "https://raw.githubusercontent.com/department-of-veterans-affairs/shanktopus/master/bin/system-authorization-token") \
-    --client-id "${!clientIdEnvVar}" \
-    --client-secret "${!clientSecretEnvVar}" \
-    --audience "${!audienceEnvVar}" \
-    --oauth-url "${!oauthUrlEnvVar}" \
+    --client-id "${clientId}" \
+    --client-secret "${clientSecret}" \
+    --audience "${audience}" \
+    --oauth-url "${oauthUrl}" \
     --scope "$(jq -r '.authentication.scopes' "${TEMPLATE_FILE}")" \
-    --launch "{\"patient\":\"${!launchPatientEnvVar}\"}" \
+    --launch "{\"patient\":\"${launchPatient}\"}" \
     --print-token \
     lab \
     | jq -r '.access_token'
