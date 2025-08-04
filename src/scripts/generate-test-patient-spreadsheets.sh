@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "${DEBUG:=false}" == "true" ]; then set -x; fi
 export WORK=$(mktemp -p /tmp -d work.XXXX)
 
 main() {
