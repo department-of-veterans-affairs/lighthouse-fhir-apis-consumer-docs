@@ -3,9 +3,9 @@ set -euo pipefail
 export WORK=$(mktemp -p /tmp -d work.XXXX)
 
 main() {
-  local preSubstitutionTemplate="${1}" outputXlsx="${2}" tmpOutputCsv
+  local preSubstitutionTemplate="${1}" outputXlsx="${2}"
   TEMPLATE_FILE=$(mktemp -p "${WORK:-/tmp}")
-  tmpOutputCsv="${WORK}/$(basename "${outputXlsx}" | sed 's/\.xlsx$/.csv/')"
+  TMP_OUTPUT_CSV="${WORK}/$(basename "${outputXlsx}" | sed 's/\.xlsx$/.csv/')"
   log "INFO" "Generating curled test data spreadsheet for ${preSubstitutionTemplate} and outputting to ${outputXlsx}"
   trap "onExit" EXIT
 
@@ -27,9 +27,9 @@ main() {
   log "INFO" "Performing environment substitution on ${preSubstitutionTemplate}"
   envsubst < "${preSubstitutionTemplate}" > "${TEMPLATE_FILE}"
 
-  generateCsv "${tmpOutputCsv}"
+  generateCsv
 
-  convertToXlsx "${tmpOutputCsv}" "${outputXlsx}"
+  convertToXlsx "${outputXlsx}"
 
   log "INFO" "Done"
 }
@@ -56,7 +56,6 @@ request() {
 }
 
 generateCsv() {
-  local outputCsv="${1}"
   local curlResponse baseUrl patientFields resourceStaticFields resourceJqFields patientFieldValues staticFieldValues
   curlResponse=$(mktemp -p "${WORK:-/tmp}")
   baseUrl=$(jq -r '.baseUrl' "${TEMPLATE_FILE}")
@@ -78,7 +77,7 @@ generateCsv() {
     done
   done
 
-  echo "ICN,${patientFields// /,}Resource${resourceStaticFields// /,}${resourceJqFields// /,}" > "${outputCsv}"
+  echo "ICN,${patientFields// /,}Resource${resourceStaticFields// /,}${resourceJqFields// /,}" > "${TMP_OUTPUT_CSV}"
 
   # Send the requests and create the spreadsheet rows
   for patientId in $(jq -r '.patientIds[]' "${TEMPLATE_FILE}"); do
@@ -103,13 +102,13 @@ generateCsv() {
           staticFieldValues+="${value//,/ }"  # Replace commas with spaces
         fi
       done
-      createSpreadsheetRowsForResource "${resourceType}" "${outputCsv}" "${curlResponse}" "${patientId}" "${patientFieldValues},${resourceType}${staticFieldValues}" "${resourceJqFields}"
+      createSpreadsheetRowsForResource "${resourceType}" "${curlResponse}" "${patientId}" "${patientFieldValues},${resourceType}${staticFieldValues}" "${resourceJqFields}"
     done
   done
 }
 
 createSpreadsheetRowsForResource() {
-  local resourceType="${1}" outputCsv="${2}" curlResponse="${3}" patientId="${4}" rowNonResourceJqFields="${5}" resourceJqFields="${6}" baseUrl jqFieldValues url numRecords
+  local resourceType="${1}" curlResponse="${2}" patientId="${3}" rowNonResourceJqFields="${4}" resourceJqFields="${5}" baseUrl jqFieldValues url numRecords
   baseUrl=$(jq -r '.baseUrl' "${TEMPLATE_FILE}")
   declare -A jqFieldValues
 
@@ -141,7 +140,7 @@ createSpreadsheetRowsForResource() {
           row+=","
         fi
       done
-      echo "${row}" >> "${outputCsv}"
+      echo "${row}" >> "${TMP_OUTPUT_CSV}"
     done
 
     url=$(jq -r '.link[]? | select( .relation=="next" ) | .url' "${curlResponse}")
@@ -149,10 +148,10 @@ createSpreadsheetRowsForResource() {
 }
 
 convertToXlsx() {
-  local inputCsv="${1}" outputXlsx="${2}"
+  local outputXlsx="${1}"
 
   log "INFO" "Converting csv to xlsx"
-  libreoffice --headless --convert-to xlsx --outdir "$(dirname "${outputXlsx}")" "${inputCsv}"
+  libreoffice --headless --convert-to xlsx --outdir "$(dirname "${outputXlsx}")" "${TMP_OUTPUT_CSV}"
 }
 
 new-token() {
