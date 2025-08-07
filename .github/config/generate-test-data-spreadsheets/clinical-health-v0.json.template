@@ -6,8 +6,7 @@
     "clientSecret": "${CHAPI_CCG_CLIENT_SECRET}",
     "audience": "${CHAPI_CCG_AUDIENCE}",
     "oauthUrl": "${CHAPI_CCG_OAUTH_URL}",
-    "scopes": "launch system/AllergyIntolerance.read system/Condition.read system/MedicationDispense.read system/MedicationRequest.read system/Observation.read system/Patient.read system/Practitioner.read",
-    "launchPatient": "${MAGIC_PATIENT_ICN}"
+    "scopes": "launch system/AllergyIntolerance.read system/Condition.read system/MedicationDispense.read system/MedicationRequest.read system/Observation.read system/Patient.read system/Practitioner.read"
   },
   "patientIds": [
     "32000225",

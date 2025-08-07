@@ -174,7 +174,6 @@ new-ccg-token() {
   clientSecret="$(jq -r '.authentication.clientSecret' "${TEMPLATE_FILE}")"
   audience="$(jq -r '.authentication.audience' "${TEMPLATE_FILE}")"
   oauthUrl="$(jq -r '.authentication.oauthUrl' "${TEMPLATE_FILE}")"
-  launchPatient="$(jq -r '.authentication.launchPatient' "${TEMPLATE_FILE}")"
   bash <(curl -sH"Authorization: Bearer $GITHUB_TOKEN" "https://raw.githubusercontent.com/department-of-veterans-affairs/shanktopus/master/bin/system-authorization-token") \
     --client-id "${clientId}" \
     --client-secret "${clientSecret}" \
