@@ -50,7 +50,7 @@ request() {
   fi
   if [ "401" == "${statusCode}" ]; then
     log "INFO" "Refreshing token and retrying ${url}"
-    TOKEN=$(new-token "${patientId}")
+    TOKEN=$(newToken "${patientId}")
     statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")
   fi
   if [ "200" != "${statusCode}" ]; then
@@ -85,7 +85,7 @@ generateCsv() {
 
   # Send the requests and create the spreadsheet rows
   for patientId in $(jq -r '.patientIds[]' "${TEMPLATE_FILE}"); do
-    TOKEN=$(new-token "${patientId}")
+    TOKEN=$(newToken "${patientId}")
     request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
     patientFieldValues="${patientId}"
     for field in ${patientFields}; do
@@ -158,17 +158,20 @@ convertToXlsx() {
   libreoffice --headless --convert-to xlsx --outdir "$(dirname "${outputXlsx}")" "${TMP_OUTPUT_CSV}"
 }
 
-new-token() {
+newToken() {
   local patientId="${1}"
-  if [ "ccg" == "$(jq -r '.authentication.type' "${TEMPLATE_FILE}")" ]; then
-    new-ccg-token "${patientId}"
-  else
-    log "ERROR" "Unsupported authentication type in template file: $(jq -r '.authentication.type' "${TEMPLATE_FILE}")"
-    exit 1
-  fi
+  case "$(jq -r '.authentication.type' "${TEMPLATE_FILE}")" in
+    "ccg")
+      newCcgToken "${patientId}"
+      ;;
+    *)
+      log "ERROR" "Unsupported authentication type in template file: $(jq -r '.authentication.type' "${TEMPLATE_FILE}")"
+      exit 1
+      ;;
+  esac
 }
 
-new-ccg-token() {
+newCcgToken() {
   local launchPatient="${1}" clientId clientSecret audience oauthUrl
   clientId="$(jq -r '.authentication.clientId' "${TEMPLATE_FILE}")"
   clientSecret="$(jq -r '.authentication.clientSecret' "${TEMPLATE_FILE}")"
