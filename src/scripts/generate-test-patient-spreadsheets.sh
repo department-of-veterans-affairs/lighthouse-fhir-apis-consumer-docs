@@ -44,14 +44,18 @@ request() {
   local url="${1}" curlResponse="${2}" patientId="${3}" statusCode
 
   log "INFO" "Requesting ${url}"
-  if [ "200" != "$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")" ]; then
+  statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")
+  if [ "200" == "${statusCode}" ]; then
+    return
+  fi
+  if [ "401" == "${statusCode}" ]; then
     log "INFO" "Refreshing token and retrying ${url}"
-    TOKEN=$(new-token)
+    TOKEN=$(new-token "${patientId}")
     statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")
-    if [ "200" != "${statusCode}" ]; then
-      log "ERROR" "Request to ${url} failed. Status code was ${statusCode}."
-      exit 1
-    fi
+  fi
+  if [ "200" != "${statusCode}" ]; then
+    log "ERROR" "Request to ${url} failed. Status code was ${statusCode}."
+    exit 1
   fi
 }
 
