@@ -6,7 +6,7 @@ main() {
   local preSubstitutionTemplate="${1}" outputXlsx="${2}"
   TEMPLATE_FILE=$(mktemp -p "${WORK:-/tmp}")
   TMP_OUTPUT_CSV="${WORK}/$(basename "${outputXlsx}" | sed 's/\.xlsx$/.csv/')"
-  log "INFO" "Generating curled test data spreadsheet for ${preSubstitutionTemplate} and outputting to ${outputXlsx}"
+  log "INFO" "Generating test data spreadsheet for ${preSubstitutionTemplate} and outputting to ${outputXlsx}"
   trap "onExit" EXIT
 
   if [ ! -f "${preSubstitutionTemplate}" ]; then
