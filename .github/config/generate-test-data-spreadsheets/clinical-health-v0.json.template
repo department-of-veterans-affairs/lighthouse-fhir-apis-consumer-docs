@@ -39,15 +39,15 @@
       "jqFields": [
         {
           "name": "Code",
-          "path": "( .code.coding // [] )[] | select( .system==\"http://www.nlm.nih.gov/research/umls/rxnorm\" ) | .code"
+          "path": ". | select(.code != null).code.coding[] | select( .system==\"http://www.nlm.nih.gov/research/umls/rxnorm\" ) | .code"
         },
         {
           "name": "Description",
-          "path": "( .code.coding // [] )[] | select( .system==\"http://www.nlm.nih.gov/research/umls/rxnorm\" ) | .display"
+          "path": ". | select(.code != null).code.coding[] | select( .system==\"http://www.nlm.nih.gov/research/umls/rxnorm\" ) | .display"
         },
         {
           "name": "Status",
-          "path": "( .clinicalStatus.coding // [] )[] | select ( .system==\"http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical\" ) | .code"
+          "path": ". | select(.clinicalStatus != null).clinicalStatus.coding[] | select( .system==\"http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical\" ) | .code"
         },
         {
           "name": "Date",
@@ -66,11 +66,11 @@
       "jqFields": [
         {
           "name": "Code",
-          "path": "( .code.coding // [] )[] | select( .system==\"http://snomed.info/sct\" ) | .code"
+          "path": ". | select(.code != null).code.coding[] | select( .system==\"http://snomed.info/sct\" ) | .code"
         },
         {
           "name": "Description",
-          "path": "( .code.coding // [] )[] | select( .system==\"http://snomed.info/sct\" ) | .display"
+          "path": ". | select(.code != null).code.coding[] | select( .system==\"http://snomed.info/sct\" ) | .display"
         },
         {
           "name": "Status",
@@ -97,11 +97,11 @@
       "jqFields": [
         {
           "name": "Code",
-          "path": "( .medicationCodeableConcept.coding // [] )[] | select( .system==\"urn:oid:2.16.840.1.113883.6.233\" ) | .code"
+          "path": ". | select(.medicationCodeableConcept != null).medicationCodeableConcept.coding[] | select( .system==\"urn:oid:2.16.840.1.113883.6.233\" ) | .code"
         },
         {
           "name": "Description",
-          "path": "( .medicationCodeableConcept.coding // [] )[] | select( .system==\"urn:oid:2.16.840.1.113883.6.233\" ) | .display"
+          "path": ". | select(.medicationCodeableConcept != null).medicationCodeableConcept.coding[] | select( .system==\"urn:oid:2.16.840.1.113883.6.233\" ) | .display"
         },
         {
           "name": "Status",
@@ -124,11 +124,11 @@
       "jqFields": [
         {
           "name": "Code",
-          "path": "( .medicationCodeableConcept.coding // [] )[] | select( .system==\"https://www.pbm.va.gov/nationalformulary.asp\" ) | .code"
+          "path": ". | select(.medicationCodeableConcept != null).medicationCodeableConcept.coding[] | select( .system==\"https://www.pbm.va.gov/nationalformulary.asp\" ) | .code"
         },
         {
           "name": "Description",
-          "path": "( .medicationCodeableConcept.coding // [] )[] | select( .system==\"https://www.pbm.va.gov/nationalformulary.asp\" ) | .display"
+          "path": ". | select(.medicationCodeableConcept != null).medicationCodeableConcept.coding[] | select( .system==\"https://www.pbm.va.gov/nationalformulary.asp\" ) | .display"
         },
         {
           "name": "Status",
@@ -155,11 +155,11 @@
       "jqFields": [
         {
           "name": "Code",
-          "path": "( .code.coding // [] )[] | select( .system==\"http://loinc.org\" ) | .code"
+          "path": ". | select(.code != null).code.coding[] | select( .system==\"http://loinc.org\" ) | .code"
         },
         {
           "name": "Description",
-          "path": ".code | ( ( .coding // [])[] | select( .system==\"http://loinc.org\" ) | .display) // .text"
+          "path": ". | select(.code != null).code | ( .coding[] | select( .system==\"http://loinc.org\" ) | .display ) // .text"
         },
         {
           "name": "Status",
