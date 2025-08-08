@@ -60,86 +60,83 @@ request() {
 }
 
 generateCsv() {
-  local curlResponse baseUrl patientFields resourceStaticFields resourceJqFields patientFieldValues staticFieldValues
+  local curlResponse baseUrl patientFields resourceFields patientFieldValues resourceFieldValues
   curlResponse=$(mktemp -p "${WORK:-/tmp}")
   baseUrl=$(jq -r '.baseUrl' "${TEMPLATE_FILE}")
 
-  patientFields=$(jq -r '.patientFields[].name' "${TEMPLATE_FILE}" | tr '\n' ' ')
-  resourceStaticFields=()
-  resourceJqFields=()
+  patientFields=()
+  resourceFields=()
 
-  for i in $(seq 0 $(($(jq '.resources | length' "${TEMPLATE_FILE}")-1))); do
-    for staticField in $(jq -r ".resources[${i}].staticFields[].name" "${TEMPLATE_FILE}"); do
-      if [[ ! " ${resourceStaticFields[*]} " =~ [[:space:]]${staticField}[[:space:]] ]]; then
-          resourceStaticFields+=" ${staticField}"
-      fi
-    done
-    for jqField in $(jq -r ".resources[${i}].jqFields[].name" "${TEMPLATE_FILE}"); do
-      if [[ ! " ${resourceJqFields[*]} " =~ [[:space:]]${jqField}[[:space:]] ]]; then
-          resourceJqFields+=" ${jqField}"
+  for resourceType in $(jq -r ".resources[].type" "${TEMPLATE_FILE}" | tr '\n' ' '); do
+    for field in $(jq -r ".resources[] | select( .type==\"${resourceType}\").fields[].name" "${TEMPLATE_FILE}"); do
+      if [[ "${resourceType}" == "Patient" ]]; then
+        patientFields+=" ${field}"
+      elif [[ ! " ${resourceFields[*]} " =~ [[:space:]]${field}[[:space:]] ]]; then
+        resourceFields+=" ${field}"
       fi
     done
   done
 
-  echo "ICN,${patientFields// /,}Resource${resourceStaticFields// /,}${resourceJqFields// /,}" > "${TMP_OUTPUT_CSV}"
+  if [ -n "${patientFields}" ]; then
+    patientFields=${patientFields:1} # Remove leading space
+  fi
+
+  echo "${patientFields// /,},Resource${resourceFields// /,}" > "${TMP_OUTPUT_CSV}"
 
   # Send the requests and create the spreadsheet rows
   for patientId in $(jq -r '.patientIds[]' "${TEMPLATE_FILE}"); do
     TOKEN=$(newToken "${patientId}")
+
+    # Get the Patient field values. These will appear on every row for this patient.
     request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
-    patientFieldValues="${patientId}"
+    patientFieldValues=""
     for field in ${patientFields}; do
       patientFieldValues+=","
-      value=$(jq -r "$(jq -r ".patientFields[] | select(.name==\"${field}\") | .path" "${TEMPLATE_FILE}")" "${curlResponse}")
+      configFieldObject=$(jq -r ".resources[] | select( .type==\"Patient\" ).fields[] | select(.name==\"${field}\")" "${TEMPLATE_FILE}")
+      value=$(fieldValueFromRead "${configFieldObject}" "${curlResponse}")
       if [ "${value}" != "null" ]; then
         patientFieldValues+="${value//,/ }"  # Replace commas with spaces
       fi
     done
 
-    for i in $(seq 0 $(($(jq '.resources | length' "${TEMPLATE_FILE}")-1))); do
-      resourceType=$(jq -r ".resources[${i}].type" "${TEMPLATE_FILE}")
-      staticFieldValues=""
-      for field in ${resourceStaticFields}; do
-        staticFieldValues+=","
-        value="$(jq -r ".resources[] | select( .type==\"${resourceType}\") | ( .staticFields // [])[] | select(.name==\"${field}\") | .value" "${TEMPLATE_FILE}")"
-        if [ "${value}" != "null" ]; then
-          staticFieldValues+="${value//,/ }"  # Replace commas with spaces
-        fi
-      done
-      createSpreadsheetRowsForResource "${resourceType}" "${curlResponse}" "${patientId}" "${patientFieldValues},${resourceType}${staticFieldValues}" "${resourceJqFields}"
+    if [ -n "${patientFieldValues}" ]; then
+      patientFieldValues=${patientFieldValues:1} # Remove leading comma
+    fi
+
+    for resourceType in $(jq -r ".resources[] | select( .type!=\"Patient\" ).type" "${TEMPLATE_FILE}" | tr '\n' ' '); do
+      createSpreadsheetRowsForResource "${resourceType}" "${curlResponse}" "${patientId}" "${patientFieldValues}" "${resourceFields}"
     done
   done
 }
 
 createSpreadsheetRowsForResource() {
-  local resourceType="${1}" curlResponse="${2}" patientId="${3}" rowNonResourceJqFields="${4}" resourceJqFields="${5}" baseUrl jqFieldValues url numRecords
+  local resourceType="${1}" curlResponse="${2}" patientId="${3}" patientFieldValues="${4}" resourceFields="${5}" baseUrl resourceFieldValues url numRecords configFieldObject
   baseUrl=$(jq -r '.baseUrl' "${TEMPLATE_FILE}")
-  declare -A jqFieldValues
+  declare -A resourceFieldValues
 
   url="${baseUrl}/${resourceType}?patient=${patientId}"
   while [ -n "${url:-}" ]; do
-    jqFieldValues=()
+    resourceFieldValues=()
     request "${url}" "${curlResponse}" "${patientId}"
     unset url
 
     numRecords=$(jq -r '.entry | length' "${curlResponse}")
 
-    if [ "${numRecords}" -eq 0 ]; then
+    if [ ! "${numRecords}" -gt 0 ]; then
       log "INFO" "No ${resourceType} resources found for patient ${patientId}"
       continue
     fi
 
-    for jqField in ${resourceJqFields}; do
-      if [[ " $(jq -r ".resources[] | select( .type==\"${resourceType}\" ) | .jqFields[].name" "${TEMPLATE_FILE}" | tr '\n' ' ')" =~ [[:space:]]${jqField}[[:space:]] ]]; then
-        jqFieldValues["${jqField}"]=$(jq -r ".entry[].resource | $(jq -r ".resources[] | select(.type==\"${resourceType}\") | .jqFields[] | select(.name==\"${jqField}\") | .path" "${TEMPLATE_FILE}")" "${curlResponse}")
-      fi
+    for fieldName in $(jq -r ".resources[] | select( .type==\"${resourceType}\" ).fields[].name" "${TEMPLATE_FILE}" | tr '\n' ' '); do
+      configFieldObject="$(jq -r ".resources[] | select( .type==\"${resourceType}\" ).fields[] | select( .name==\"${fieldName}\" )" "${TEMPLATE_FILE}" | tr '\n' ' ')"
+      resourceFieldValues["${fieldName}"]=$(fieldValuesFromSearch "${configFieldObject}" "${curlResponse}" "${numRecords}")
     done
 
     for i in $(seq 1 ${numRecords}); do
-      row="${rowNonResourceJqFields}"
-      for jqField in ${resourceJqFields}; do
-        if [[ " $(jq -r " .resources[] | select( .type==\"${resourceType}\" ) | .jqFields[].name" "${TEMPLATE_FILE}" | tr '\n' ' ')" =~ [[:space:]]${jqField}[[:space:]] ]]; then
-          row+=",$(echo "${jqFieldValues[${jqField}]}" | sed -n "${i} p" | tr ',' ' ')"
+      row="${patientFieldValues},${resourceType}"
+      for fieldName in ${resourceFields}; do
+        if [[ " $(jq -r " .resources[] | select( .type==\"${resourceType}\" ) | .fields[].name" "${TEMPLATE_FILE}" | tr '\n' ' ')" =~ [[:space:]]${fieldName}[[:space:]] ]]; then
+          row+=",$(echo "${resourceFieldValues[${fieldName}]}" | sed -n "${i} p" | tr ',' ' ')"
         else
           row+=","
         fi
@@ -149,6 +146,36 @@ createSpreadsheetRowsForResource() {
 
     url=$(jq -r '.link[]? | select( .relation=="next" ) | .url' "${curlResponse}")
   done
+}
+
+fieldValueFromRead() {
+  local configFieldObject="${1}" curlResponse="${2}"
+  if echo "${configFieldObject}" | jq --exit-status '.jqQuery' >/dev/null; then
+    jq -r "$(echo "${configFieldObject}" | jq -r '.jqQuery')" "${curlResponse}"
+  elif echo "${configFieldObject}" | jq --exit-status '.staticValue' >/dev/null; then
+    echo "${configFieldObject}" | jq -r '.staticValue'
+  else
+    log "ERROR" "No \"jqQuery\" or \"staticValue\" found for field: $(echo "${configFieldObject}" | jq -r '.name'))"
+    exit 1
+  fi
+}
+
+fieldValuesFromSearch() {
+  local configFieldObject="${1}" curlResponse="${2}" numRecords="${3}" staticValue staticValueReplicated
+  if echo "${configFieldObject}" | jq --exit-status '.jqQuery' >/dev/null; then
+    jq -r ".entry[].resource | $(echo "${configFieldObject}" | jq -r '.jqQuery')" "${curlResponse}"
+  elif echo "${configFieldObject}" | jq --exit-status '.staticValue' >/dev/null; then
+    staticValue="$(echo "${configFieldObject}" | jq -r '.staticValue')"
+    staticValueReplicated="${staticValue}"
+    # Return rows of the same static value, one for each resource entry so they can be processed the same as jqQuery values
+    for i in $(seq 1 $((${numRecords}-1))); do
+      staticValueReplicated+=$(printf "\n%s" "${staticValue}")
+    done
+    echo "${staticValueReplicated}"
+  else
+    log "ERROR" "No \"jqQuery\" or \"staticValue\" found for field: $(echo "${configFieldObject}" | jq -r '.name'))"
+    exit 1
+  fi
 }
 
 convertToXlsx() {
