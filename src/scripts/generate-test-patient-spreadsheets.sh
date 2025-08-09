@@ -95,7 +95,7 @@ generateCsv() {
       configFieldObject=$(jq -r ".resources[] | select( .type==\"Patient\" ).fields[] | select(.name==\"${field}\")" "${TEMPLATE_FILE}")
       value=$(fieldValueFromRead "${configFieldObject}" "${curlResponse}")
       if [ "${value}" != "null" ]; then
-        patientFieldValues+="${value//,/ }"  # Replace commas with spaces
+        patientFieldValues+="\"${value}\""
       fi
     done
 
@@ -136,7 +136,7 @@ createSpreadsheetRowsForResource() {
       row="${patientFieldValues},${resourceType}"
       for fieldName in ${resourceFields}; do
         if [[ " $(jq -r " .resources[] | select( .type==\"${resourceType}\" ) | .fields[].name" "${TEMPLATE_FILE}" | tr '\n' ' ')" =~ [[:space:]]${fieldName}[[:space:]] ]]; then
-          row+=",$(echo "${resourceFieldValues[${fieldName}]}" | sed -n "${i} p" | tr ',' ' ')"
+          row+=",\"$(echo "${resourceFieldValues[${fieldName}]}" | sed -n "${i} p")\""
         else
           row+=","
         fi
