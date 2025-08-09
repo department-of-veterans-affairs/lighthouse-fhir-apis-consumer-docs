@@ -3,10 +3,10 @@ set -euo pipefail
 export WORK=$(mktemp -p /tmp -d work.XXXX)
 
 main() {
-  local preSubstitutionTemplate="${1}" outputXlsx="${2}"
+  local preSubstitutionTemplate="${1}" outputCsv="${2}"
   TEMPLATE_FILE=$(mktemp -p "${WORK:-/tmp}")
-  TMP_OUTPUT_CSV="${WORK}/$(basename "${outputXlsx}" | sed 's/\.xlsx$/.csv/')"
-  log "INFO" "Generating test data spreadsheet for ${preSubstitutionTemplate} and outputting to ${outputXlsx}"
+  TMP_OUTPUT_CSV=$(mktemp -p "${WORK:-/tmp}")
+  log "INFO" "Generating test data spreadsheet for ${preSubstitutionTemplate} and outputting to ${outputCsv}"
   trap "onExit" EXIT
 
   if [ ! -f "${preSubstitutionTemplate}" ]; then
@@ -19,17 +19,10 @@ main() {
     return 1
   fi
 
-  if ! command -v libreoffice &> /dev/null; then
-    log "ERROR" "libreoffice is not installed. Please install libreoffice to use this script."
-    exit 1
-  fi
-
   log "INFO" "Performing environment substitution on ${preSubstitutionTemplate}"
   envsubst < "${preSubstitutionTemplate}" > "${TEMPLATE_FILE}"
 
-  generateCsv
-
-  convertToXlsx "${outputXlsx}"
+  generateCsv "${outputCsv}"
 
   log "INFO" "Done"
 }
@@ -60,13 +53,13 @@ request() {
 }
 
 generateCsv() {
-  local curlResponse baseUrl patientFields resourceFields patientFieldValues resourceFieldValues
-  curlResponse=$(mktemp -p "${WORK:-/tmp}")
+  local outputCsv="${1}" baseUrl patientFields resourceFields
   baseUrl=$(jq -r '.baseUrl' "${TEMPLATE_FILE}")
 
   patientFields=()
   resourceFields=()
 
+  # Collect field names from the template file
   for resourceType in $(jq -r ".resources[].type" "${TEMPLATE_FILE}" | tr '\n' ' '); do
     for field in $(jq -r ".resources[] | select( .type==\"${resourceType}\").fields[].name" "${TEMPLATE_FILE}"); do
       if [[ "${resourceType}" == "Patient" ]]; then
@@ -81,37 +74,53 @@ generateCsv() {
     patientFields=${patientFields:1} # Remove leading space
   fi
 
-  echo "${patientFields// /,},Resource${resourceFields// /,}" > "${TMP_OUTPUT_CSV}"
-
-  # Send the requests and create the spreadsheet rows
+  # Send the requests and create the spreadsheet rows in parallel
   for patientId in $(jq -r '.patientIds[]' "${TEMPLATE_FILE}"); do
-    TOKEN=$(newToken "${patientId}")
-
-    # Get the Patient field values. These will appear on every row for this patient.
-    request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
-    patientFieldValues=""
-    for field in ${patientFields}; do
-      patientFieldValues+=","
-      configFieldObject=$(jq -r ".resources[] | select( .type==\"Patient\" ).fields[] | select(.name==\"${field}\")" "${TEMPLATE_FILE}")
-      value=$(fieldValueFromRead "${configFieldObject}" "${curlResponse}")
-      if [ "${value}" != "null" ]; then
-        patientFieldValues+="\"${value}\""
-      fi
-    done
-
-    if [ -n "${patientFieldValues}" ]; then
-      patientFieldValues=${patientFieldValues:1} # Remove leading comma
-    fi
-
-    for resourceType in $(jq -r ".resources[] | select( .type!=\"Patient\" ).type" "${TEMPLATE_FILE}" | tr '\n' ' '); do
-      createSpreadsheetRowsForResource "${resourceType}" "${curlResponse}" "${patientId}" "${patientFieldValues}" "${resourceFields}"
-    done
+    createSpreadsheetRowsForPatient "${patientId}" "${baseUrl}" "${patientFields}" "${resourceFields}" &
   done
+  wait # Wait for all patient processing to finish
+
+  # Remove nulls
+  sed -i 's/null//g' "${TMP_OUTPUT_CSV}"
+
+  # Header row
+  echo "${patientFields// /,},Resource${resourceFields// /,}" > "${outputCsv}"
+
+  # Sort the temporary CSV and append to output CSV
+  sort "${TMP_OUTPUT_CSV}" >> "${outputCsv}"
+}
+
+createSpreadsheetRowsForPatient() {
+  local patientId="${1}" baseUrl="${2}" patientFields="${3}" resourceFields="${4}" curlResponse patientFieldValues resourceFieldValues
+  curlResponse=$(mktemp -p "${WORK:-/tmp}")
+  TOKEN=$(newToken "${patientId}")
+
+  # Get the Patient field values. These will appear on every row for this patient.
+  request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
+  patientFieldValues=""
+  for field in ${patientFields}; do
+    patientFieldValues+=","
+    configFieldObject=$(jq -r ".resources[] | select( .type==\"Patient\" ).fields[] | select(.name==\"${field}\")" "${TEMPLATE_FILE}")
+    value=$(fieldValueFromRead "${configFieldObject}" "${curlResponse}")
+    if [ "${value}" != "null" ]; then
+      patientFieldValues+="\"${value}\""
+    fi
+  done
+
+  if [ -n "${patientFieldValues}" ]; then
+    patientFieldValues=${patientFieldValues:1} # Remove leading comma
+  fi
+
+  # Get the rows for each resource for this patient
+  for resourceType in $(jq -r ".resources[] | select( .type!=\"Patient\" ).type" "${TEMPLATE_FILE}" | tr '\n' ' '); do
+    createSpreadsheetRowsForResource "${resourceType}" "${baseUrl}" "${patientId}" "${patientFieldValues}" "${resourceFields}" &
+  done
+  wait # Wait for all resource processing to finish
 }
 
 createSpreadsheetRowsForResource() {
-  local resourceType="${1}" curlResponse="${2}" patientId="${3}" patientFieldValues="${4}" resourceFields="${5}" baseUrl resourceFieldValues url numRecords configFieldObject
-  baseUrl=$(jq -r '.baseUrl' "${TEMPLATE_FILE}")
+  local resourceType="${1}" baseUrl="${2}" patientId="${3}" patientFieldValues="${4}" resourceFields="${5}" curlResponse resourceFieldValues url numRecords configFieldObject
+  curlResponse=$(mktemp -p "${WORK:-/tmp}")
   declare -A resourceFieldValues
 
   url="${baseUrl}/${resourceType}?patient=${patientId}"
