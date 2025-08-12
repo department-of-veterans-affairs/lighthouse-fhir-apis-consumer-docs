@@ -11,12 +11,12 @@ main() {
 
   if [ ! -f "${preSubstitutionTemplate}" ]; then
     log "ERROR" "${preSubstitutionTemplate} does not exist."
-    return 1
+    exit 1
   fi
 
   if ! jq -e . "${preSubstitutionTemplate}" >/dev/null 2>&1; then
     log "ERROR" "${preSubstitutionTemplate} is not valid json."
-    return 1
+    exit 1
   fi
 
   log "INFO" "Performing environment substitution on ${preSubstitutionTemplate}"
@@ -33,23 +33,19 @@ onExit() {
   rm -rf "$WORK"
 }
 
+# Send a request and output the token in case it was refreshed.
 request() {
-  local url="${1}" curlResponse="${2}" patientId="${3}" statusCode
+  local url="${1}" curlResponse="${2}" patientId="${3}" token="${4}" statusCode
 
-  log "INFO" "Requesting ${url}"
-  statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")
-  if [ "200" == "${statusCode}" ]; then
-    return
-  fi
+  statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer ${token}" "${url}")
   if [ "401" == "${statusCode}" ]; then
-    log "INFO" "Refreshing token and retrying ${url}"
-    TOKEN=$(newToken "${patientId}")
-    statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")
+    token=$(newToken "${patientId}")
+    statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer ${token}" "${url}")
   fi
   if [ "200" != "${statusCode}" ]; then
-    log "ERROR" "Request to ${url} failed. Status code was ${statusCode}."
     exit 1
   fi
+  echo "${token}"
 }
 
 generateCsv() {
@@ -91,12 +87,13 @@ generateCsv() {
 }
 
 createSpreadsheetRowsForPatient() {
-  local patientId="${1}" baseUrl="${2}" patientFields="${3}" resourceFields="${4}" curlResponse patientFieldValues resourceFieldValues
+  local patientId="${1}" baseUrl="${2}" patientFields="${3}" resourceFields="${4}" curlResponse patientFieldValues resourceFieldValues currToken
   curlResponse=$(mktemp -p "${WORK:-/tmp}")
-  TOKEN=$(newToken "${patientId}")
+  currToken=$(newToken "${patientId}")
 
   # Get the Patient field values. These will appear on every row for this patient.
-  request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
+  log "INFO" "Requesting ${baseUrl}/Patient/${patientId}"
+  currToken=$(request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}" "${currToken}")
   patientFieldValues=""
   for field in ${patientFields}; do
     patientFieldValues+=","
@@ -113,20 +110,21 @@ createSpreadsheetRowsForPatient() {
 
   # Get the rows for each resource for this patient
   for resourceType in $(jq -r ".resources[] | select( .type!=\"Patient\" ).type" "${TEMPLATE_FILE}" | tr '\n' ' '); do
-    createSpreadsheetRowsForResource "${resourceType}" "${baseUrl}" "${patientId}" "${patientFieldValues}" "${resourceFields}" &
+    createSpreadsheetRowsForResource "${resourceType}" "${baseUrl}" "${patientId}" "${patientFieldValues}" "${resourceFields}" "${currToken}" &
   done
   wait # Wait for all resource processing to finish
 }
 
 createSpreadsheetRowsForResource() {
-  local resourceType="${1}" baseUrl="${2}" patientId="${3}" patientFieldValues="${4}" resourceFields="${5}" curlResponse resourceFieldValues url numRecords configFieldObject
+  local resourceType="${1}" baseUrl="${2}" patientId="${3}" patientFieldValues="${4}" resourceFields="${5}" currToken="${6}" curlResponse resourceFieldValues url numRecords configFieldObject
   curlResponse=$(mktemp -p "${WORK:-/tmp}")
   declare -A resourceFieldValues
 
   url="${baseUrl}/${resourceType}?patient=${patientId}"
   while [ -n "${url:-}" ]; do
     resourceFieldValues=()
-    request "${url}" "${curlResponse}" "${patientId}"
+    log "INFO" "Requesting ${url}"
+    currToken=$(request "${url}" "${curlResponse}" "${patientId}" "${currToken}")
     unset url
 
     numRecords=$(jq -r '.entry | length' "${curlResponse}")
