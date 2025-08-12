@@ -27,7 +27,7 @@ jobs:
           sudo apt install -y --no-install-recommends libreoffice
       - uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'corretto'
       - name: Setup Maven
         env:
