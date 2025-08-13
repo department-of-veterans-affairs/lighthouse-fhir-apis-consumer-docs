@@ -21,6 +21,8 @@ jobs:
             RELEASE="true"
           fi
           echo "RELEASE=${RELEASE:-false}" | tee -a ${GITHUB_ENV}
+          echo "LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml" \
+            | tee --append ${GITHUB_ENV}
       - name: Install libreoffice
         run: |
           sudo apt-get update
