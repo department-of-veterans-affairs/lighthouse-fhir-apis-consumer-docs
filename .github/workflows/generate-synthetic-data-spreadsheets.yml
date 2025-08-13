@@ -1,0 +1,97 @@
+name: Generate Synthetic Data Spreadsheets
+permissions: write-all
+on:
+  workflow_dispatch:
+
+jobs:
+  generate-synthetic-data-spreadsheet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'corretto'
+      - name: Setup Maven
+        env:
+          MAVEN_VERSION: '3.9.8'
+        run: |
+          echo "Installing Apache Maven ${MAVEN_VERSION}"
+          MAVEN_URL="http://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+          echo "Downloading maven from ${MAVEN_URL}"
+          curl --silent \
+            --location \
+            --output /tmp/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
+            ${MAVEN_URL}
+          mkdir --parents /home/runner/.local/bin
+          MAVEN_DIR=/home/runner/.local
+          echo "Installing maven in ${MAVEN_DIR}/bin"
+          tar -x -C ${MAVEN_DIR} -f /tmp/apache-maven-${MAVEN_VERSION}-bin.tar.gz
+          ln --symbolic ${MAVEN_DIR}/apache-maven-${MAVEN_VERSION}/bin/mvn /home/runner/.local/bin/mvn
+          rm /tmp/apache-maven-${MAVEN_VERSION}-bin.tar.gz
+      - name: Get Consumer Docs Repo
+        uses: actions/checkout@v4
+        with:
+          # The standard GITHUB_ACTOR cannot push back to a protected branch.
+          # We must checkout with a god-mode user.
+          token: ${{ secrets.BUILD_GITHUB_TOKEN }}
+          path: consumer-docs
+      - name: Get Synth Records Repo
+        uses: actions/checkout@v4
+        with:
+          # The standard GITHUB_ACTOR cannot push back to a protected branch.
+          # We must checkout with a god-mode user.
+          token: ${{ secrets.BUILD_GITHUB_TOKEN }}
+          repository: department-of-veterans-affairs/health-apis-datamart-synthetic-records
+          ref: qa
+          fetch-depth: 0
+          path: synthetic-records
+      - name: Initialize
+        run: |
+          # Setup Environment
+          echo "LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml" \
+            | tee --append ${GITHUB_ENV}
+      - name: Generate PHAPI Spreadsheet
+        env:
+          GITHUB_TOKEN_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
+        run: |
+          echo "Building PHAPI spreadsheet..."
+          export RESOURCES=AllergyIntolerance,Appointment,Condition,DiagnosticReport,Device,DeviceRequest,DocumentReference,Encounter,Immunization,MedicationOrder,MedicationStatement,Observation,Procedure
+          export OUTPUT_FILE=health-test-patient-data.xlsx
+          ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
+          mkdir -p ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0
+          mv ${GITHUB_WORKSPACE}/synthetic-records/health-test-patient-data.xlsx \
+            ${GITHUB_WORKSPACE}/consumer-docs/patient-health-v0/health-test-patient-data.xlsx
+          cd ${GITHUB_WORKSPACE}/consumer-docs
+          git add patient-health-v0/health-test-patient-data.xlsx
+      - name: Generate H3CAPI Spreadsheet
+        env:
+          GITHUB_TOKEN_USERNAME: ${{ secrets.BUILD_GITHUB_USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
+        run: |
+          echo "Building H3CAPI spreadsheet..."
+          export RESOURCES=Account,ChargeItem,Encounter,Invoice,PaymentReconciliation
+          export OUTPUT_FILE=health-care-costs-coverage-v0-test-patient-data.xlsx
+          ${GITHUB_WORKSPACE}/synthetic-records/minimart-manager/summary-xlsx.sh
+          mkdir -p ${GITHUB_WORKSPACE}/consumer-docs/health-care-costs-coverage-v0
+          mv ${GITHUB_WORKSPACE}/synthetic-records/health-care-costs-coverage-v0-test-patient-data.xlsx \
+            ${GITHUB_WORKSPACE}/consumer-docs/health-care-costs-coverage-v0/health-care-costs-coverage-v0-test-patient-data.xlsx
+          cd ${GITHUB_WORKSPACE}/consumer-docs
+          git add health-care-costs-coverage-v0/health-care-costs-coverage-v0-test-patient-data.xlsx
+      - name: Upload Spreadsheets
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          cd ${GITHUB_WORKSPACE}/consumer-docs
+          git config user.name libertybot
+          git config user.email "<none>"
+          CHANGES=$(git status --untracked-files=no --porcelain)
+          if [ -z "${CHANGES:-}" ]
+          then
+            echo "No changes"
+            exit 0
+          fi
+          echo "Pushing updated spreadsheets"
+          git commit -m "Updated synthetic data spreadsheets"
+          git push -u origin ${BRANCH_NAME}
+          
