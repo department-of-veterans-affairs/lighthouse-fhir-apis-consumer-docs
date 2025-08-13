@@ -185,13 +185,6 @@ fieldValuesFromSearch() {
   fi
 }
 
-convertToXlsx() {
-  local outputXlsx="${1}"
-
-  log "INFO" "Converting csv to xlsx"
-  libreoffice --headless --convert-to xlsx --outdir "$(dirname "${outputXlsx}")" "${TMP_OUTPUT_CSV}"
-}
-
 newToken() {
   local patientId="${1}"
   case "$(jq -r '.authentication.type' "${TEMPLATE_FILE}")" in
