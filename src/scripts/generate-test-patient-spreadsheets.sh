@@ -90,23 +90,37 @@ generateCsv() {
 }
 
 createSpreadsheetRowsForPatient() {
-  local patientId="${1}" baseUrl="${2}" patientFields="${3}" resourceFields="${4}" curlResponse patientFieldValues resourceFieldValues
+  local patientId="${1}" baseUrl="${2}" patientFields="${3}" resourceFields="${4}" curlResponse patientFieldValues resourceFieldValuesFile
   curlResponse=$(mktemp -p "${WORK:-/tmp}")
+  resourceFieldValuesFile=$(mktemp -p "${WORK:-/tmp}")
   PATIENT_TOKENS["${patientId}"]=$(newToken "${patientId}")
 
   # Get the Patient field values. These will appear on every row for this patient.
   request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
-  patientFieldValues="$(fieldValuesFromPatientRead "${curlResponse}" "${patientFields}")"
+  patientFieldValues="$(getPatientFieldValues "${curlResponse}" "${patientFields}")"
 
-  # Get the resource field values for each resource, combine them with the patient field values, and write to the output CSV.
+  # Get the resource field values for each resource and write to a temporary CSV file.
+  generateResourceFieldValues "${baseUrl}" "${patientId}" "${resourceFields}" "${resourceFieldValuesFile}"
+
+  while read -r line; do
+    # For each resource row, prepend the patient field values and write to the output CSV.
+    echo "${patientFieldValues},${line}" >> "${TMP_OUTPUT_CSV}"
+  done < "${resourceFieldValuesFile}"
+}
+
+# Generate the resource field values for each resource for a given patient and write them to an output CSV file.
+generateResourceFieldValues() {
+  local baseUrl="${1}" patientId="${2}" resourceFields="${3}" resourceFieldValuesFile="${4}"
   for resourceType in $(jq -r ".resources[] | select( .type!=\"Patient\" ).type" "${TEMPLATE_FILE}" | tr '\n' ' '); do
-    createSpreadsheetRowsForResource "${resourceType}" "${baseUrl}" "${patientId}" "${patientFieldValues}" "${resourceFields}" &
+    generateSpecificResourceFieldValues "${resourceType}" "${baseUrl}" "${patientId}" "${resourceFields}" "${resourceFieldValuesFile}" &
   done
   wait # Wait for all resource processing to finish
 }
 
-createSpreadsheetRowsForResource() {
-  local resourceType="${1}" baseUrl="${2}" patientId="${3}" patientFieldValues="${4}" resourceFields="${5}" curlResponse resourceFieldValues url numRecords configFieldObject
+# Write the resource field values for a given resource and patient to an output CSV file to be combined later.
+# Each row follows the following pattern: Resource,Field1,Field2,...,FieldN
+generateSpecificResourceFieldValues() {
+  local resourceType="${1}" baseUrl="${2}" patientId="${3}" resourceFields="${4}" resourceFieldValuesFile="${5}" curlResponse resourceFieldValues url numRecords configFieldObject
   curlResponse=$(mktemp -p "${WORK:-/tmp}")
   declare -A resourceFieldValues
 
@@ -129,7 +143,7 @@ createSpreadsheetRowsForResource() {
     done
 
     for i in $(seq 1 ${numRecords}); do
-      row="${patientFieldValues},${resourceType}"
+      row="${resourceType}"
       for fieldName in ${resourceFields}; do
         if [[ " $(jq -r " .resources[] | select( .type==\"${resourceType}\" ) | .fields[].name" "${TEMPLATE_FILE}" | tr '\n' ' ')" =~ [[:space:]]${fieldName}[[:space:]] ]]; then
           row+=",\"$(echo "${resourceFieldValues[${fieldName}]}" | sed -n "${i} p")\""
@@ -137,7 +151,7 @@ createSpreadsheetRowsForResource() {
           row+=","
         fi
       done
-      echo "${row}" >> "${TMP_OUTPUT_CSV}"
+      echo "${row}" >> "${resourceFieldValuesFile}"
     done
 
     url=$(jq -r '.link[]? | select( .relation=="next" ) | .url' "${curlResponse}")
