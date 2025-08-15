@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 export WORK=$(mktemp -p /tmp -d work.XXXX)
+declare -A PATIENT_TOKENS
+PATIENT_TOKENS=()
 
 main() {
   local preSubstitutionTemplate="${1}" outputCsv="${2}"
@@ -11,12 +13,12 @@ main() {
 
   if [ ! -f "${preSubstitutionTemplate}" ]; then
     log "ERROR" "${preSubstitutionTemplate} does not exist."
-    return 1
+    exit 1
   fi
 
   if ! jq -e . "${preSubstitutionTemplate}" >/dev/null 2>&1; then
     log "ERROR" "${preSubstitutionTemplate} is not valid json."
-    return 1
+    exit 1
   fi
 
   log "INFO" "Performing environment substitution on ${preSubstitutionTemplate}"
@@ -37,14 +39,11 @@ request() {
   local url="${1}" curlResponse="${2}" patientId="${3}" statusCode
 
   log "INFO" "Requesting ${url}"
-  statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")
-  if [ "200" == "${statusCode}" ]; then
-    return
-  fi
+  statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer ${PATIENT_TOKENS["${patientId}"]}" "${url}")
   if [ "401" == "${statusCode}" ]; then
     log "INFO" "Refreshing token and retrying ${url}"
-    TOKEN=$(newToken "${patientId}")
-    statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer $TOKEN" "${url}")
+    PATIENT_TOKENS["${patientId}"]=$(newToken "${patientId}")
+    statusCode=$(curl -s -o "${curlResponse}" -w "%{http_code}" -H "Authorization: Bearer ${PATIENT_TOKENS["${patientId}"]}" "${url}")
   fi
   if [ "200" != "${statusCode}" ]; then
     log "ERROR" "Request to ${url} failed. Status code was ${statusCode}."
@@ -93,7 +92,7 @@ generateCsv() {
 createSpreadsheetRowsForPatient() {
   local patientId="${1}" baseUrl="${2}" patientFields="${3}" resourceFields="${4}" curlResponse patientFieldValues resourceFieldValues
   curlResponse=$(mktemp -p "${WORK:-/tmp}")
-  TOKEN=$(newToken "${patientId}")
+  PATIENT_TOKENS["${patientId}"]=$(newToken "${patientId}")
 
   # Get the Patient field values. These will appear on every row for this patient.
   request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
