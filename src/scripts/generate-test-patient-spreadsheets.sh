@@ -55,8 +55,8 @@ generateCsv() {
   local outputCsv="${1}" baseUrl patientFields resourceFields
   baseUrl=$(jq -r '.baseUrl' "${TEMPLATE_FILE}")
 
-  patientFields=()
-  resourceFields=()
+  patientFields=""
+  resourceFields=""
 
   # Collect field names from the template file
   for resourceType in $(jq -r ".resources[].type" "${TEMPLATE_FILE}" | tr '\n' ' '); do
