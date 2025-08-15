@@ -96,21 +96,9 @@ createSpreadsheetRowsForPatient() {
 
   # Get the Patient field values. These will appear on every row for this patient.
   request "${baseUrl}/Patient/${patientId}" "${curlResponse}" "${patientId}"
-  patientFieldValues=""
-  for field in ${patientFields}; do
-    patientFieldValues+=","
-    configFieldObject=$(jq -r ".resources[] | select( .type==\"Patient\" ).fields[] | select(.name==\"${field}\")" "${TEMPLATE_FILE}")
-    value=$(fieldValueFromRead "${configFieldObject}" "${curlResponse}")
-    if [ "${value}" != "null" ]; then
-      patientFieldValues+="\"${value}\""
-    fi
-  done
+  patientFieldValues="$(fieldValuesFromPatientRead "${curlResponse}" "${patientFields}")"
 
-  if [ -n "${patientFieldValues}" ]; then
-    patientFieldValues=${patientFieldValues:1} # Remove leading comma
-  fi
-
-  # Get the rows for each resource for this patient
+  # Get the resource field values for each resource, combine them with the patient field values, and write to the output CSV.
   for resourceType in $(jq -r ".resources[] | select( .type!=\"Patient\" ).type" "${TEMPLATE_FILE}" | tr '\n' ' '); do
     createSpreadsheetRowsForResource "${resourceType}" "${baseUrl}" "${patientId}" "${patientFieldValues}" "${resourceFields}" &
   done
@@ -156,7 +144,23 @@ createSpreadsheetRowsForResource() {
   done
 }
 
-fieldValueFromRead() {
+getPatientFieldValues() {
+  local curlResponse="${1}" patientFields="${2}" patientFieldValues="" configFieldObject value
+  for field in ${patientFields}; do
+    patientFieldValues+=","
+    configFieldObject=$(jq -r ".resources[] | select( .type==\"Patient\" ).fields[] | select(.name==\"${field}\")" "${TEMPLATE_FILE}")
+    value=$(fieldValuesFromRead "${configFieldObject}" "${curlResponse}")
+    if [ "${value}" != "null" ]; then
+      patientFieldValues+="\"${value}\""
+    fi
+  done
+  if [ -n "${patientFieldValues}" ]; then
+    patientFieldValues=${patientFieldValues:1} # Remove leading comma
+  fi
+  echo "${patientFieldValues}"
+}
+
+fieldValuesFromRead() {
   local configFieldObject="${1}" curlResponse="${2}"
   if echo "${configFieldObject}" | jq --exit-status '.jqQuery' >/dev/null; then
     jq -r "$(echo "${configFieldObject}" | jq -r '.jqQuery')" "${curlResponse}"
