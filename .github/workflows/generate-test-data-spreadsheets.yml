@@ -1,15 +1,33 @@
-name: Generate Synthetic Data Spreadsheets
+name: Generate Test Data Spreadsheets
 permissions: write-all
 on:
+  pull_request:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  generate-synthetic-data-spreadsheet:
+  synthetic-record-generator:
+    name: Generate and Push Test Data Spreadsheets
     runs-on: ubuntu-latest
     steps:
+      - name: Initialize Environment
+        env:
+          BUILD_TRIGGER: ${{ github.event_name }}
+        run: |
+          echo "BUILD_TRIGGER=${BUILD_TRIGGER}" | tee -a ${GITHUB_ENV}
+          if [ "${BUILD_TRIGGER}" == "push" ] || [ "${BUILD_TRIGGER}" == "workflow_dispatch" ]
+          then
+            RELEASE="true"
+          fi
+          echo "RELEASE=${RELEASE:-false}" | tee -a ${GITHUB_ENV}
+      - name: Install libreoffice
+        run: |
+          sudo apt-get update
+          sudo apt install -y --no-install-recommends libreoffice
       - uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'corretto'
       - name: Setup Maven
         env:
@@ -45,7 +63,7 @@ jobs:
           ref: qa
           fetch-depth: 0
           path: synthetic-records
-      - name: Initialize
+      - name: Initialize Maven Settings
         run: |
           # Setup Environment
           echo "LIGHTHOUSE_SETTINGS=${GITHUB_WORKSPACE}/consumer-docs/.github/build/settings.xml" \
@@ -78,11 +96,33 @@ jobs:
             ${GITHUB_WORKSPACE}/consumer-docs/health-care-costs-coverage-v0/health-care-costs-coverage-v0-test-patient-data.xlsx
           cd ${GITHUB_WORKSPACE}/consumer-docs
           git add health-care-costs-coverage-v0/health-care-costs-coverage-v0-test-patient-data.xlsx
+      - name: Generate templated spreadsheets
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUILD_GITHUB_TOKEN }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          CHAPI_CCG_CLIENT_ID: ${{ secrets.CHAPI_CCG_CLIENT_ID }}
+          CHAPI_CCG_CLIENT_SECRET: ${{ secrets.CHAPI_CCG_CLIENT_SECRET }}
+          CHAPI_CCG_AUDIENCE: ${{ secrets.CHAPI_CCG_AUDIENCE }}
+          CHAPI_CCG_OAUTH_URL: ${{ secrets.CHAPI_CCG_OAUTH_URL }}
+        run: |
+          for template in $(find .github/config/generate-test-data-spreadsheets -name '*.json.template' -type f)
+          do
+            apiName=$(basename "${template}" | sed 's/.json.template//')
+            mkdir --parents "${apiName}"
+            tmpOutputCsv="${apiName}/${apiName}-test-patient-data.csv"
+            ./src/scripts/generate-test-patient-spreadsheets.sh "${template}" "${tmpOutputCsv}"
+            libreoffice --headless --convert-to xlsx --outdir "$(dirname "${tmpOutputCsv}")" "${tmpOutputCsv}"
+            git add "$(echo "${tmpOutputCsv}" | sed 's/\.csv$/.xlsx/')"
+          done
       - name: Upload Spreadsheets
         env:
           BRANCH_NAME: ${{ github.ref_name }}
         run: |
-          cd ${GITHUB_WORKSPACE}/consumer-docs
+          if [ ! "true" == "${RELEASE:-false}" ]
+          then
+            echo "Not a release build, skipping upload of spreadsheets"
+            exit 0
+          fi
           git config user.name libertybot
           git config user.email "<none>"
           CHANGES=$(git status --untracked-files=no --porcelain)
@@ -92,6 +132,5 @@ jobs:
             exit 0
           fi
           echo "Pushing updated spreadsheets"
-          git commit -m "Updated synthetic data spreadsheets"
+          git commit -m "Updated test data spreadsheets"
           git push -u origin ${BRANCH_NAME}
-          
