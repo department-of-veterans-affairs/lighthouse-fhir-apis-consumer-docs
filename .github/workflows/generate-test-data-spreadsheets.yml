@@ -123,6 +123,7 @@ jobs:
             echo "Not a release build, skipping upload of spreadsheets"
             exit 0
           fi
+          cd ${GITHUB_WORKSPACE}/consumer-docs
           git config user.name libertybot
           git config user.email "<none>"
           CHANGES=$(git status --untracked-files=no --porcelain)
