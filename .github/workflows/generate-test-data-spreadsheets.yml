@@ -2,8 +2,6 @@ name: Generate Test Data Spreadsheets
 permissions: write-all
 on:
   pull_request:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -105,6 +103,7 @@ jobs:
           CHAPI_CCG_AUDIENCE: ${{ secrets.CHAPI_CCG_AUDIENCE }}
           CHAPI_CCG_OAUTH_URL: ${{ secrets.CHAPI_CCG_OAUTH_URL }}
         run: |
+          cd ${GITHUB_WORKSPACE}/consumer-docs
           for template in $(find .github/config/generate-test-data-spreadsheets -name '*.json.template' -type f)
           do
             apiName=$(basename "${template}" | sed 's/.json.template//')
